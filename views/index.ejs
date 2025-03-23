@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title><%= pageTitle %></title>
+  </head>
+  <body>
+    <header>
+      <h1 class="bg">Welcome to <%= pageTitle %></h1>
+      <nav>
+        <ul>
+          <li><a href="/">Home</a></li>
+          <li><a href="/about">About</a></li>
+          <li><a href="/contact">Contact</a></li>
+        </ul>
+      </nav>
+    </header>
+
+    <section>
+      <h2>Featured Content</h2>
+      <p><%= featuredContent %></p>
+    </section>
+
+    <footer>
+      <p>
+        &copy; <%= new Date().getFullYear() %> My Express App. All rights
+        reserved.
+      </p>
+    </footer>
+
+    <script src="/js/script.js"></script>
+  </body>
+</html>

@@ -1,0 +1,96 @@
+#!/usr/bin/env node
+
+/**
+ * Module dependencies.
+ */
+const { app } = require('../app');
+const fs = require('fs');
+const path = require('path');
+const http = require('http');
+const https = require('https');
+const socketIo = require('socket.io');
+const debug = require('debug')('HiddengemCourse-Backend:server');
+
+// อ่านค่า USE_HTTPS จาก environment variables (ค่าดีฟอลต์คือ false)
+const useHttps = process.env.USE_HTTPS === 'true';
+
+const port = normalizePort(process.env.PORT || '3111');
+app.set('port', port);
+
+let server; // สำหรับเก็บ instance ของ server
+
+if (useHttps) {
+  // ตัวเลือก HTTPS
+  const options = {
+    key: fs.readFileSync(path.join(__dirname, 'localhost-key.pem')),
+    cert: fs.readFileSync(path.join(__dirname, 'localhost-cert.pem'))
+  };
+
+  server = https.createServer(options, app);
+  console.log('Starting server in HTTPS mode');
+} else {
+  // ตัวเลือก HTTP
+  server = http.createServer(app);
+  console.log('Starting server in HTTP mode');
+}
+
+const io = socketIo(server);
+
+io.on('connection', (socket) => {
+  console.log('User connected to socket.io');
+  socket.on('disconnect', () => {
+    console.log('User disconnected from socket.io');
+  });
+});
+
+server.listen(port);
+server.on('error', onError);
+server.on('listening', onListening);
+
+function normalizePort(val) {
+  const port = parseInt(val, 10);
+
+  if (isNaN(port)) {
+    // named pipe
+    return val;
+  }
+
+  if (port >= 0) {
+    // port number
+    return port;
+  }
+
+  return false;
+}
+
+function onError(error) {
+  if (error.syscall !== 'listen') {
+    throw error;
+  }
+
+  const bind = typeof port === 'string'
+    ? 'Pipe ' + port
+    : 'Port ' + port;
+
+  switch (error.code) {
+    case 'EACCES':
+      console.error(bind + ' requires elevated privileges');
+      process.exit(1);
+      break;
+    case 'EADDRINUSE':
+      console.error(bind + ' is already in use');
+      process.exit(1);
+      break;
+    default:
+      throw error;
+  }
+}
+
+function onListening() {
+  const addr = server.address();
+  const bind = typeof addr === 'string'
+    ? 'pipe ' + addr
+    : 'port ' + addr.port;
+  console.log(`Listening on ${bind}`);
+  debug('Listening on ' + bind);
+}

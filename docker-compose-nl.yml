@@ -1,0 +1,19 @@
+version: "3"
+
+services:
+  nightlife-main-backend:
+    image: nightlife-main-backend:all
+    build:
+      context: .
+      dockerfile: Dockerfile-nl
+    restart: always
+    env_file:
+      - .env-nl
+    ports:
+      - "3102:3102"
+    networks:
+      - my_network
+
+networks:
+  my_network:
+    external: true

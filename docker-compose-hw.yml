@@ -1,0 +1,19 @@
+version: "3"
+
+services:
+  healworld-main-backend:
+    image: healworld-main-backend:all
+    build:
+      context: .
+      dockerfile: Dockerfile-hw
+    restart: always
+    env_file:
+      - .env-hw
+    ports:
+      - "3112:3112"
+    networks:
+      - my_network
+
+networks:
+  my_network:
+    external: true
