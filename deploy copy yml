@@ -9,40 +9,20 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v4
-
-    - name: Debug SSH Connection
-      run: |
-        echo "${{ secrets.SSH_KEY }}" > private_key
-        chmod 600 private_key
-        ssh -o StrictHostKeyChecking=no -i private_key ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "echo 'SSH Connected Successfully'"
-
-    - name: Deploy via SSH
+    - name: SSH and Deploy
       uses: appleboy/ssh-action@master
       with:
         host: ${{ secrets.SERVER_HOST }}
         username: ${{ secrets.SERVER_USER }}
         key: ${{ secrets.SSH_KEY }}
         script: |
-          set -e  # Stop script if any command fails
-          
-          echo "📁 Ensuring project directory exists..."
           mkdir -p /root/hiddengem/hiddengem_backend_1
           cd /root/hiddengem/hiddengem_backend_1
-          
-          echo "🔄 Fetching latest code..."
           git fetch origin
           git reset --hard origin/main
-          
-          echo "📦 Installing dependencies..."
           yarn install
-          
-          echo "🐳 Building Docker images..."
           docker build -t healworld-main-backend:all -f Dockerfile-hw . --no-cache
           docker compose -f docker-compose-hw.yml up -d --build
           docker build -t nightlife-main-backend:all -f Dockerfile-nl . --no-cache
           docker compose -f docker-compose-nl.yml up -d --build
-          
-          echo "🧹 Cleaning up unused Docker images..."
           docker system prune -f
