@@ -18,6 +18,7 @@ jobs:
         script: |
           mkdir -p /root/hiddengem/hiddengem_backend_1
           cd /root/hiddengem/hiddengem_backend_1
+          git remote -v  # ตรวจสอบว่าใช้ SSH หรือ HTTPS
           git fetch origin
           git reset --hard origin/main
           yarn install
