@@ -16,6 +16,10 @@ jobs:
         username: ${{ secrets.SERVER_USER }}
         key: ${{ secrets.SSH_KEY }}
         script: |
+          eval "$(ssh-agent -s)"  # เริ่ม SSH Agent
+          export SSH_AUTH_SOCK=$(ls /tmp/ssh-*/agent.* 2>/dev/null | head -n 1)
+          ssh-add ~/.ssh/id_rsa_git_hiddengem1 || true
+
           mkdir -p /root/hiddengem/hiddengem_backend_1
           cd /root/hiddengem/hiddengem_backend_1
           git remote -v  # ตรวจสอบว่าใช้ SSH หรือ HTTPS
