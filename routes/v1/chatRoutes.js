@@ -3,7 +3,7 @@ module.exports = function (io) {
   const { ChatRoom, Message} = require("../../schemas/v1/chat.schema");
   const Activity = require("../../schemas/v1/activity.schema");
   const User = require("../../schemas/v1/user.schema");
-  const Post = require("../../schemas/v1/post.Schema");
+  const Post = require("../../schemas/v1/post.schema");
   const Reaction = require("../../schemas/v1/reaction.schema");
 
   const bodyParser = require("body-parser");

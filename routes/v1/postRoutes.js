@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const post = require("../../schemas/v1/post.Schema");
+const post = require("../../schemas/v1/post.schema");
 const reaction = require("../../schemas/v1/reaction.schema");
 const path = require("path");
 const multer = require("multer");
