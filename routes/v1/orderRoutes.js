@@ -1,3 +1,5 @@
+const { createOrderRateLimiter, getOrdersRateLimiter } = require("../../modules/ratelimit/orderRatelimiter");
+
 module.exports = function (io) {
   const express = require("express");
   const router = express.Router();
@@ -9,9 +11,9 @@ module.exports = function (io) {
     getOrdersByUserId,
   } = require("../../controllers/orderControllers");
 
-  router.post("/create-payment-intent", createPaymentIntent);
-  router.get("/", getAllOrders);
-  router.get("/:userId", getOrdersByUserId);
+  router.post("/create-payment-intent", createOrderRateLimiter, createPaymentIntent);
+  router.get("/", getOrdersRateLimiter, getAllOrders);
+  router.get("/:userId", getOrdersRateLimiter, getOrdersByUserId);
 
   return {
     router,
