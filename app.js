@@ -8,8 +8,6 @@ const chalk = require("chalk");
 const cors = require("cors");
 const passport = require("passport");
 const sessions = require("express-session");
-const isAdmin = require("./middlewares/authMiddleware"); // Import Middleware
-
 
 //? Databases
 const connectMongoDB = require("./modules/database/mongodb");
@@ -26,9 +24,6 @@ redis.on("error", (err) => console.log("Redis Client Error", err));
 
 module.exports = redis;
 
-//? deal Endpoints (เพิ่มเข้าไป)
-const v1dealRouter = require("./routes/v1/dealRoutes");
-app.use("/api/v1/deal", v1dealRouter);
 
 //? Modules
 require("dotenv").config({ path: `.env.${process.env.NODE_ENV}` });
