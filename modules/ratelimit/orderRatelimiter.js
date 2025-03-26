@@ -11,7 +11,7 @@ const createOrderRateLimiter = rateLimit({
         return ip;
     },
     windowMs: 10 * 60 * 1000, // 10 minutes
-    max: 10, // limit each IP to 5 requests per window Ms
+    max: 100, // limit each IP to 5 requests per window Ms
     standardHeaders: true,
     legacyHeaders: false,
     message: "Exceeded Rate Limit, please try again in 10 minutes"
@@ -24,7 +24,7 @@ const getOrdersRateLimiter = rateLimit({
         return ip;
     },
     windowMs: 10 * 60 * 1000, // 10 minutes
-    max: 10, // limit each IP to 5 requests per window Ms
+    max: 100, // limit each IP to 5 requests per window Ms
     standardHeaders: true,
     legacyHeaders: false,
     message: "Exceeded Rate Limit, please try again in 10 minutes"
@@ -37,7 +37,7 @@ const deleteOrdersRateLimiter = rateLimit({
         return ip;
     },
     windowMs: 10 * 60 * 1000, // 10 minutes
-    max: 10, // limit each IP to 3 requests per window Ms
+    max: 100, // limit each IP to 3 requests per window Ms
     standardHeaders: true,
     legacyHeaders: false,
     message: "Exceeded Rate Limit, please try again in 10 minutes"
