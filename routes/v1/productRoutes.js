@@ -11,18 +11,18 @@ const {
   } = require("../../middlewares/auth");  
 
 // เส้นทางสร้างสินค้า
-router.post("/add", [getProductsRateLimiter, verifyAccessTokenWeb, authRoles], productController.createProduct);
+router.post("/add", productController.createProduct);
 
 // เส้นทางดูสินค้าทั้งหมด
-router.get("/", [getProductsRateLimiter, verifyAccessTokenWeb], productController.getAllProducts);
+router.get("/", productController.getAllProducts);
 
 // เส้นทางดูสินค้าตาม ID
 router.get("/:id", [getProductsRateLimiter, verifyAccessTokenWeb], productController.getProductById);
 
 // เส้นทางอัปเดตสินค้า
-router.put("/:id", [getProductsRateLimiter, verifyAccessTokenWeb, authRoles], productController.updateProduct);
+router.put("/:id", productController.updateProduct);
 
 // เส้นทางลบสินค้า
-router.delete("/:id", [getProductsRateLimiter, verifyAccessTokenWeb, authRoles], productController.deleteProduct);
+router.delete("/:id", productController.deleteProduct);
 
 module.exports = router;
