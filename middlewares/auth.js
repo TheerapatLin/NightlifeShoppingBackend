@@ -4,8 +4,6 @@ const JWT_REFRESH_TOKEN_SECRET = process.env.JWT_REFRESH_TOKEN_SECRET;
 const SUPER_ADMIN_API_KEY = process.env.SUPER_ADMIN_API_KEY;
 const redis = require("../app");
 
-requiredRoles = ["admin", "superadmin"]
-
 const { TokenExpiredError } = jwt;
 
 const accessTokenCatchError = (err, res) => {
@@ -189,13 +187,13 @@ const verifyAccessTokenWeb = async (req, res, next) => {
 };
 
 const authRoles = (requiredRoles) => (req, res, next) => {
-  const role = req.header["role"]
+  const role = req.headers["role"]; // ✅ ใช้ req.headers แทน req.header
 
-  if (!role && requiredRoles.include(role)) {
-      next();
-  }else{
-      return res.status(403).json({ message: 'Access denied' });
+  if (!role || !requiredRoles.includes(role)) { // ✅ เช็ก role ให้ถูกต้อง
+    return res.status(403).json({ message: "Access denied" });
   }
+  
+  next(); // ✅ ให้ผ่านต่อไปเมื่อ role ถูกต้อง
 };
 
 const verifyRefreshToken = (req, res, next) => {

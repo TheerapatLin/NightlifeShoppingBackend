@@ -10,7 +10,7 @@ const createProductRateLimiter = rateLimit({
     }),
     */
     windowMs: 10 * 60 * 1000, // 10 minutes
-    max: 1000, // limit each IP to 5 requests per window Ms
+    max: 100, // limit each IP to 5 requests per window Ms
     standardHeaders: true,
     legacyHeaders: false,
     message: "Exceeded Rate Limit, please try again in 10 minutes"
@@ -22,19 +22,7 @@ const getProductRateLimiter = rateLimit({
     }),
     */
     windowMs: 10 * 60 * 1000, // 10 minutes
-    max: 1000, // limit each IP to 5 requests per window Ms
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: "Exceeded Rate Limit, please try again in 10 minutes"
-});
-
-const getProductsRateLimiter = rateLimit({
-    /*store: new RedisStore({
-        sendCommand: (...args) => redis.sendCommand(args),
-    }),
-    */
-    windowMs: 10 * 60 * 1000, // 10 minutes
-    max: 1000, // limit each IP to 5 requests per window Ms
+    max: 100, // limit each IP to 5 requests per window Ms
     standardHeaders: true,
     legacyHeaders: false,
     message: "Exceeded Rate Limit, please try again in 10 minutes"
@@ -46,24 +34,12 @@ const deleteProductRateLimiter = rateLimit({
     }),
     */
     windowMs: 10 * 60 * 1000, // 10 minutes
-    max: 1000, // limit each IP to 3 requests per window Ms
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: "Exceeded Rate Limit, please try again in 10 minutes"
-});
-
-const deleteProductsRateLimiter = rateLimit({
-    /*store: new RedisStore({
-        sendCommand: (...args) => redis.sendCommand(args),
-    }),
-    */
-    windowMs: 10 * 60 * 1000, // 10 minutes
-    max: 1000, // limit each IP to 3 requests per window Ms
+    max: 100, // limit each IP to 3 requests per window Ms
     standardHeaders: true,
     legacyHeaders: false,
     message: "Exceeded Rate Limit, please try again in 10 minutes"
 });
 
 module.exports = {
-    createProductRateLimiter, getProductRateLimiter, getProductsRateLimiter, deleteProductRateLimiter, deleteProductsRateLimiter
+    createProductRateLimiter, getProductRateLimiter, deleteProductRateLimiter
 }

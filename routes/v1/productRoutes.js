@@ -1,7 +1,18 @@
 const express = require("express");
 const router = express.Router();
-const productController = require("../../controllers/productControllers");
-const getProductsRateLimiter = require("../../modules/ratelimit/productRatelimiter");
+const {
+    createProductRateLimiter,
+    getProductRateLimiter,
+    deleteProductRateLimiter,
+  } = require("../../modules/ratelimit/productRatelimiter");
+
+const {
+    createProduct,
+    getAllProducts,
+    getProductById,
+    updateProduct,
+    deleteProduct,
+  } = require("../../controllers/productControllers");
 
 const {
     verifyAccessToken,
@@ -10,19 +21,10 @@ const {
     authRoles,
   } = require("../../middlewares/auth");  
 
-// เส้นทางสร้างสินค้า
-router.post("/add", [getProductsRateLimiter, verifyAccessTokenWeb, authRoles], productController.createProduct);
-
-// เส้นทางดูสินค้าทั้งหมด
-router.get("/", [getProductsRateLimiter, verifyAccessTokenWeb], productController.getAllProducts);
-
-// เส้นทางดูสินค้าตาม ID
-router.get("/:id", [getProductsRateLimiter, verifyAccessTokenWeb], productController.getProductById);
-
-// เส้นทางอัปเดตสินค้า
-router.put("/:id", [getProductsRateLimiter, verifyAccessTokenWeb, authRoles], productController.updateProduct);
-
-// เส้นทางลบสินค้า
-router.delete("/:id", [getProductsRateLimiter, verifyAccessTokenWeb, authRoles], productController.deleteProduct);
+router.post("/product", createProductRateLimiter, [verifyAccessTokenWeb, authRoles(["admin", "superadmin"])], createProduct);
+router.get("/", getProductRateLimiter, [verifyAccessTokenWeb], getAllProducts);
+router.get("/:id", getProductRateLimiter, [verifyAccessTokenWeb], getProductById);
+router.put("/:id", getProductRateLimiter, [verifyAccessTokenWeb, authRoles(["admin", "superadmin"])], updateProduct);
+router.delete("/:id", deleteProductRateLimiter, [verifyAccessTokenWeb, authRoles(["admin", "superadmin"])], deleteProduct);
 
 module.exports = router;
