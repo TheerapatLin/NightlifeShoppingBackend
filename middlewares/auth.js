@@ -186,6 +186,16 @@ const verifyAccessTokenWeb = async (req, res, next) => {
   }
 };
 
+const authRoles = (requiredRoles) => (req, res, next) => {
+  const role = req.headers["role"]; // ✅ ใช้ req.headers แทน req.header
+
+  if (!role || !requiredRoles.includes(role)) { // ✅ เช็ก role ให้ถูกต้อง
+    return res.status(403).json({ message: "Access denied" });
+  }
+  
+  next(); // ✅ ให้ผ่านต่อไปเมื่อ role ถูกต้อง
+};
+
 const verifyRefreshToken = (req, res, next) => {
   if (!req.headers["authorization"])
     return res.status(401).send({
@@ -236,4 +246,5 @@ module.exports = {
   verifyRefreshToken,
   verifyAPIKey,
   verifyAccessTokenWeb,
+  authRoles,
 };
