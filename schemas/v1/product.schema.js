@@ -10,7 +10,7 @@ const ProductSchema = new mongoose.Schema({
     th: { type: String, required: true }
   },
   type: { type: String, required: true },
-  imageUrls: { type: String, required: true },
+  imageUrls: [{ type: String, required: true }],
   originalPrice: { type: Number, required: true },
   discountedPrice: { type: Number, required: true },
   currency: { type: String, default: 'THB' },
