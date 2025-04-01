@@ -4,6 +4,8 @@ const JWT_REFRESH_TOKEN_SECRET = process.env.JWT_REFRESH_TOKEN_SECRET;
 const SUPER_ADMIN_API_KEY = process.env.SUPER_ADMIN_API_KEY;
 const redis = require("../app");
 
+requiredRoles = ["admin", "superadmin"]
+
 const { TokenExpiredError } = jwt;
 
 const accessTokenCatchError = (err, res) => {
@@ -186,6 +188,16 @@ const verifyAccessTokenWeb = async (req, res, next) => {
   }
 };
 
+const authRoles = (requiredRoles) => (req, res, next) => {
+  const role = req.header["role"]
+
+  if (!role && requiredRoles.include(role)) {
+      next();
+  }else{
+      return res.status(403).json({ message: 'Access denied' });
+  }
+};
+
 const verifyRefreshToken = (req, res, next) => {
   if (!req.headers["authorization"])
     return res.status(401).send({
@@ -236,4 +248,5 @@ module.exports = {
   verifyRefreshToken,
   verifyAPIKey,
   verifyAccessTokenWeb,
+  authRoles,
 };
