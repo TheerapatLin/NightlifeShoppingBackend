@@ -24,6 +24,7 @@ redis.on("error", (err) => console.log("Redis Client Error", err));
 
 module.exports = redis;
 
+
 //? Modules
 require("dotenv").config({ path: `.env.${process.env.NODE_ENV}` });
 
@@ -176,6 +177,9 @@ app.use("/api/v1/table", v1TableRouter);
 
 const v1VenueRouter = require("./routes/v1/venueRoutes");
 app.use("/api/v1/venue", v1VenueRouter);
+
+const v1productRoutes = require("./routes/v1/productRoutes");
+app.use("/api/v1/product", v1productRoutes);
 
 //? Post Endpoint
 const activityRoutes = require("./routes/v1/activityRoutes");
