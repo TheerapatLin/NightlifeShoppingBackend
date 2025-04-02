@@ -95,7 +95,7 @@ exports.getVenueByID = async (req, res) => {
 };
 
 // Update venue by ID (PUT)
-exports.updatedVenue = async (req, res) => {
+exports.updateVenue = async (req, res) => {
     try {
         const businessId = req.headers["businessid"];
 
@@ -120,7 +120,7 @@ exports.updatedVenue = async (req, res) => {
 };
 
 // Delete venue by ID (DELETE)
-exports.deletedVenue = async (req, res) => {
+exports.deleteVenue = async (req, res) => {
     try {
         const deletedVenue = await Venue.findByIdAndDelete(req.params.venueId);
         if (!deletedVenue) {

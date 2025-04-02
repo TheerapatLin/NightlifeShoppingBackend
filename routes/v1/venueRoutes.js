@@ -6,11 +6,11 @@ const {
 
 const {
     createVenue,
-    getAllVenue,
-    getVenueById,
+    getVenue,
+    getVenueByID,
     updateVenue,
     deleteVenue,
-} = require("../../controllers/venueControllers");
+} = require("../../controllers/venueController");
 
 const {
     verifyAccessToken,
@@ -19,10 +19,10 @@ const {
     authRoles,
 } = require("../../middlewares/auth"); 
 
-router.post("/createVenue", globalRateLimit, [verifyAccessTokenWeb, authRoles(["admin", "superadmin"])], createVenue);
-router.get("/", globalRateLimit, getAllVenue);
-router.get("/:id", globalRateLimit, getVenueById);
-router.put("/:id", globalRateLimit, [verifyAccessTokenWeb, authRoles(["admin", "superadmin"])], updateVenue);
-router.delete("/:id", globalRateLimit, [verifyAccessTokenWeb, authRoles(["admin", "superadmin"])], deleteVenue);
+router.post("/createVenue", [verifyAccessTokenWeb, authRoles(["admin", "superadmin"])], createVenue);
+router.get("/", getVenue);
+router.get("/:venueId", getVenueByID);
+router.put("/:venueId", [verifyAccessTokenWeb, authRoles(["admin", "superadmin"])], updateVenue);
+router.delete("/:venueId", [verifyAccessTokenWeb, authRoles(["admin", "superadmin"])], deleteVenue);
 
 module.exports = router;
