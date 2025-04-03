@@ -54,6 +54,36 @@ exports.getAllProducts = async (req, res) => {
     }
 };
 
+// [GET] ดึงรายการสินค้าแบบมี Pagination
+exports.getPaginationProducts = async (req, res) => {
+    try {
+        let { page = 1, limit = 10 } = req.query;
+
+        // แปลงค่า page และ limit เป็นตัวเลข
+        page = parseInt(page);
+        limit = parseInt(limit);
+
+        if (isNaN(page) || page < 1) page = 1;
+        if (isNaN(limit) || limit < 1) limit = 10;
+
+        const totalProducts = await Product.countDocuments(); // นับจำนวนสินค้าทั้งหมด
+        const totalPages = Math.ceil(totalProducts / limit);
+        const products = await Product.find()
+            .skip((page - 1) * limit) // ข้ามรายการก่อนหน้า
+            .limit(limit); // จำกัดจำนวนที่แสดง
+
+        res.status(200).json({
+            page,
+            limit,
+            totalPages,
+            totalProducts,
+            products,
+        });
+    } catch (error) {
+        res.status(500).json({ error: "Server Error" });
+    }
+};
+
 // [GET] ดูสินค้าตาม ID
 exports.getProductById = async (req, res) => {
     try {
