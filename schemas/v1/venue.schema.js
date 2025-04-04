@@ -3,15 +3,18 @@ const Schema = mongoose.Schema;
 
 // สำหรับ Featured Items เช่น เมนูเด็ด
 const featuredItemSchema = new Schema({
-  name: { type: String, required: true },
-  description: { type: String, default: "" },
+  nameTH: { type: String, required: true },
+  nameEN: { type: String, required: true },
+  descriptionTH : { type: String, default: "" },
+  descriptionEN : { type: String, default: "" },
   category: {
     type: String,
     enum: ["Drink", "Food", "Other"],
     default: "Other",
   },
   images: [{ type: String }],
-  price: { type: Number },
+  normalPrice: { type: Number },
+  sellPrice: { type: Number },
   isRecommended: { type: Boolean, default: false },
   availableTime: { type: String }, // เช่น "Happy Hour 18:00-20:00"
 
