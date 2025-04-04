@@ -21,8 +21,8 @@ const {
 
 router.post("/createVenue", [verifyAccessTokenWeb, authRoles(["admin", "superadmin"])], createVenue);
 router.get("/", getVenue);
-router.get("/:venueId", getVenueByID);
-router.put("/:venueId", [verifyAccessTokenWeb, authRoles(["admin", "superadmin"])], updateVenue);
-router.delete("/:venueId", [verifyAccessTokenWeb, authRoles(["admin", "superadmin"])], deleteVenue);
+router.get("/:id", getVenueByID);
+router.put("/:id", [verifyAccessTokenWeb, authRoles(["admin", "superadmin"])], updateVenue);
+router.delete("/:id", [verifyAccessTokenWeb, authRoles(["admin", "superadmin"])], deleteVenue);
 
 module.exports = router;
