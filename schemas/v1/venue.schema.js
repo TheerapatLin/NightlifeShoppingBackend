@@ -12,7 +12,7 @@ const featuredItemSchema = new Schema({
     enum: ["Drink", "Food", "Other"],
     default: "Other",
   },
-  images: [{ type: String }],
+  images: [{ type: String }], // ไม่เกิน 3 รูป
   normalPrice: { type: Number },
   sellPrice: { type: Number },
   isRecommended: { type: Boolean, default: false },
