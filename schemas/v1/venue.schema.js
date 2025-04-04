@@ -1,30 +1,114 @@
 const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 
-const venueSchema = new Schema ({
-  businessId : {type : String},
-  name : { type : String , required : true},
-  nameTH : { type : String , required : true},
-  nameEN : { type : String , required : true},
+// สำหรับ Featured Items เช่น เมนูเด็ด
+const featuredItemSchema = new Schema({
+  name: { type: String, required: true },
+  description: { type: String, default: "" },
+  category: {
+    type: String,
+    enum: ["Drink", "Food", "Other"],
+    default: "Other"
+  },
+  images: [{ type: String }],
+  price: { type: Number },
+  isRecommended: { type: Boolean, default: false },
+  availableTime: { type: String }, // เช่น "Happy Hour 18:00-20:00"
+
+  // การอ้างอิงถึง product ถ้ามี
+  productId: { type: Schema.Types.ObjectId, ref: "Product" }
+}, { _id: false });
+
+
+const venueSchema = new Schema({
+  businessId: { type: String, index: true }, // อ้างอิงกับระบบ business
+
+  // ชื่อ
+  name: { type: String, required: true },
+  nameTH: { type: String, required: true },
+  nameEN: { type: String, required: true },
+
+  // รายละเอียด
+  descriptionTH: { type: String, required: true, default: "" },
+  descriptionEN: { type: String, required: true, default: "" },
+
+  // ตำแหน่งบนแผนที่
   location: {
-    type: { type: String, enum: ["Point"], required: true },
-    coordinates: { type: [Number], required: true }, 
+    type: {
+      type: String,
+      enum: ["Point"],
+      required: true,
+      default: "Point",
+    },
+    coordinates: {
+      type: [Number],
+      required: true, // [longitude, latitude]
+      index: "2dsphere" // สำหรับ geospatial query
+    },
     name: String,
     description: String,
   },
-  image : [{type : String}],
-  type : {
-      type: String,
-      required: true,
-      enum: ["Nightclub", "Bar" , "Restaurant" , "Food", "Activity"],
-  },
-  eventListID : [{ type: String }],
-  tableListID : [{ type : String }],
-  reviewStar: {type: Number,},
-  reviewCount: {type: Number},
-    
-})
 
-const Venue = mongoose.model('Venue', venueSchema);
+  // ประเภทของร้าน
+  type: {
+    type: String,
+    required: true,
+    enum: ["Nightclub", "Bar", "Restaurant", "Food", "Activity"],
+    index: true,
+  },
+
+  // รูปหลัก
+  image: [{ type: String }],
+
+  // เมนูเด่นหรือของแนะนำ
+  featuredItems: [featuredItemSchema],
+
+  // อ้างอิง event / โต๊ะ
+  eventListID: [{ type: String }],
+  tableListID: [{ type: String }],
+
+  // Review
+  reviewStar: { type: Number, default: 0 },
+  reviewCount: { type: Number, default: 0 },
+
+  // ช่องทางติดต่อ
+  contact: {
+    phone: { type: String },
+    email: { type: String },
+    website: { type: String },
+  },
+
+  // Social media
+  socialMedia: {
+    facebook: { type: String },
+    instagram: { type: String },
+    line: { type: String },
+    tiktok: { type: String },
+  },
+
+  // เวลาเปิดร้าน
+  openingHours: {
+    monday: { type: String },
+    tuesday: { type: String },
+    wednesday: { type: String },
+    thursday: { type: String },
+    friday: { type: String },
+    saturday: { type: String },
+    sunday: { type: String },
+  },
+
+  // แท็กและบริการเสริม
+  tags: [{ type: String, index: true }],
+  amenities: [{ type: String }],
+}, {
+  timestamps: true // เพิ่ม createdAt และ updatedAt
+});
+
+// ดัชนี (Index) ที่สำคัญ
+venueSchema.index({ type: 1, "location.coordinates": "2dsphere" });
+venueSchema.index({ tags: 1 });
+venueSchema.index({ name: "text", nameTH: "text", nameEN: "text", descriptionTH: "text", descriptionEN: "text" });
+
+const Venue = mongoose.model("Venue", venueSchema);
 
 module.exports = Venue;
