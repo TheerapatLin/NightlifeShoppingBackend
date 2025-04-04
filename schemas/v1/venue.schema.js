@@ -4,6 +4,8 @@ const Schema = mongoose.Schema;
 const venueSchema = new Schema ({
   businessId : {type : String},
   name : { type : String , required : true},
+  nameTH : { type : String , required : true},
+  nameEN : { type : String , required : true},
   location: {
     type: { type: String, enum: ["Point"], required: true },
     coordinates: { type: [Number], required: true }, 
@@ -14,7 +16,7 @@ const venueSchema = new Schema ({
   type : {
       type: String,
       required: true,
-      enum: ["Nightclub", "Bar" ,"Food", "Activity"],
+      enum: ["Nightclub", "Bar" , "Restaurant" , "Food", "Activity"],
   },
   eventListID : [{ type: String }],
   tableListID : [{ type : String }],
