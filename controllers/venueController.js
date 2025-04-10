@@ -3,131 +3,166 @@ const Venue = require("../schemas/v1/venue.schema");
 // Create venue (POST)
 exports.createVenue = async (req, res) => {
     try {
-        const { name, location, image, type, eventListID, tableListID, reviewStar, reviewCount, businessId } = req.body;
+      // รับข้อมูลจาก req.body
+      const {
+        businessId,
+        name,
+        nameTH,
+        nameEN,
+        descriptionTH,
+        descriptionEN,
+        location,
+        type,
+        image,
+        featuredItems,  // Array ของ featuredItems
+        eventListID,
+        tableListID,
+        reviewStar,
+        reviewCount,
+        contact,
+        socialMedia,
+        openingHours,
+        tags,
+        amenities
+      } = req.body;
+  
+      // สร้าง venue ใหม่
+      const newVenue = new Venue({
+        businessId,
+        name,
+        nameTH,
+        nameEN,
+        descriptionTH,
+        descriptionEN,
+        location,
+        type,
+        image,
+        featuredItems,  // featureItems จะเก็บเป็น array ของ featuredItemSchema
+        eventListID,
+        tableListID,
+        reviewStar,
+        reviewCount,
+        contact,
+        socialMedia,
+        openingHours,
+        tags,
+        amenities
+      });
+  
+      // บันทึกข้อมูลลงฐานข้อมูล
+      const savedVenue = await newVenue.save();
 
-        if (!businessId) {
-            return res.status(400).json({ success: false, error: "businessId is required" });
-        }
-
-        if (!name) {
-            console.log(name);
-            return res.status(400).send("Name is required");
-        }
-
-        // Validate location and coordinates
-        const { coordinates, name: locationName, description } = location || {};
-        if (!Array.isArray(coordinates) || coordinates.length !== 2 || isNaN(coordinates[0]) || isNaN(coordinates[1])) {
-            console.log("Invalid coordinates format");
-            return res.status(400).send({ error: "Invalid coordinates format" });
-        }
-
-        const [longitude, latitude] = coordinates;
-
-        const validTypes = ["Nightclub", "Bar", "Food", "Activity"];
-        if (!type || !validTypes.includes(type)) {
-            return res.status(400).send({ error: "Invalid venue type" });
-        }
-
-        const newVenue = new Venue({
-            businessId,
-            name,
-            location: {
-                type: "Point",
-                coordinates: [longitude, latitude],
-                name: locationName,
-                description,
-            },
-            image,
-            type,
-            eventListID,
-            tableListID,
-            reviewStar,
-            reviewCount
-        });
-
-        const savedVenue = await newVenue.save();
-        res.status(201).json({
-            message: "Venue created successfully",
-            venue: savedVenue,
-        });
-    } catch (error) {
-        res.status(400).json({ error: error.message });
+      // ส่งข้อมูลที่บันทึกสำเร็จกลับไป
+      res.status(201).json(savedVenue);
+    } catch (err) {
+      console.error("Error creating venue:", err.message);
+      res.status(400).json({ error: err.message });
     }
 };
 
-// Get venue (GET)
+// Get Allvenue (GET)
 exports.getVenue = async (req, res) => {
     try {
-        const businessId = req.headers["businessid"];
+      const venues = await Venue.find()
+        .populate('featuredItems.productId');
 
-        if (!businessId) {
-            return res
-            .status(400)
-            .json({ success: false, error: "businessId is required" });
-        }
-
-        const allVenues = await Venue.find();
-        res.status(200).json({ allVenues });
-    } catch (error) {
-        res.status(400).json({ error: error.message });
+      res.status(200).json(venues);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Error retrieving venues" });
     }
 };
 
-// Get venue by ID (GET)
+// Get venueByID (GET)
 exports.getVenueByID = async (req, res) => {
     try {
-        const businessId = req.headers["businessid"];
-
-        if (!businessId) {
-            return res
-            .status(400)
-            .json({ success: false, error: "businessId is required" });
-        }
-
-        const venue = await Venue.findById(req.params.venueId);
-        if (!venue) {
-            return res.status(404).json({ message: "Venue not found" });
-        }
-        res.status(200).json({ venue });
-    } catch (error) {
-        res.status(400).json({ error: error.message });
+      const venue = await Venue.findById(req.params.id)
+        .populate({
+          path: 'featuredItems.productId',  // Populate productId inside featuredItems
+        });
+  
+      if (!venue) {
+        return res.status(404).json({ error: "Venue not found" });
+      }
+  
+      res.status(200).json(venue);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Error retrieving venue" });
     }
 };
 
-// Update venue by ID (PUT)
+// Update Venue (PUT)
 exports.updateVenue = async (req, res) => {
     try {
-        const businessId = req.headers["businessid"];
-
-        if (!businessId) {
-            return res
-            .status(400)
-            .json({ success: false, error: "businessId is required" });
-        }
-        
-        const updatedVenue = await Venue.findByIdAndUpdate(
-            req.params.venueId,
-            req.body,
-            { new: true, runValidators: true }  // Return the updated venue and validate input
-        );
-        if (!updatedVenue) {
-            return res.status(404).json({ message: "Venue not found" });
-        }
-        res.status(200).json({ message: "Venue updated successfully", venue: updatedVenue });
-    } catch (error) {
-        res.status(400).json({ error: error.message });
+      const {
+        businessId,
+        name,
+        nameTH,
+        nameEN,
+        descriptionTH,
+        descriptionEN,
+        location,
+        type,
+        image,
+        featuredItems,  // Array of featuredItems
+        eventListID,
+        tableListID,
+        contact,
+        socialMedia,
+        openingHours,
+        tags,
+        amenities
+      } = req.body;
+  
+      const venue = await Venue.findByIdAndUpdate(
+        req.params.id,
+        {
+          businessId,
+          name,
+          nameTH,
+          nameEN,
+          descriptionTH,
+          descriptionEN,
+          location,
+          type,
+          image,
+          featuredItems,  // Directly update the array of featuredItems
+          eventListID,
+          tableListID,
+          contact,
+          socialMedia,
+          openingHours,
+          tags,
+          amenities
+        },
+        { new: true } // Return the updated document
+      );
+  
+      if (!venue) {
+        return res.status(404).json({ error: "Venue not found" });
+      }
+  
+      res.status(200).json({ message: "Venue updated successfully", venue });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Error updating venue" });
     }
 };
 
-// Delete venue by ID (DELETE)
+// Delete VenueByID (DELETE)
 exports.deleteVenue = async (req, res) => {
     try {
-        const deletedVenue = await Venue.findByIdAndDelete(req.params.venueId);
-        if (!deletedVenue) {
-            return res.status(404).json({ message: "Venue not found" });
-        }
-        res.status(200).json({ message: "Venue deleted successfully", venue: deletedVenue });
-    } catch (error) {
-        res.status(400).json({ error: error.message });
+      console.log(req.params.id);
+      const venue = await Venue.findByIdAndDelete(req.params.id);
+      console.log(venue);
+      if (!venue) {
+        return res.status(404).json({ error: "Venue not found" });
+      }
+  
+      res.status(200).json({ message: "Venue deleted successfully" });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Error deleting venue" });
     }
 };
