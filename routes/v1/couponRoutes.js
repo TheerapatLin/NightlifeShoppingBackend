@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const Coupon = require("../../schemas/v1/coupon.schema");
+const Coupon = require("../../schemas/v1/deal.schema");
 
 // Create new coupon
 router.post("/create", async (req, res) => {

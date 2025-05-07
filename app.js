@@ -181,6 +181,15 @@ app.use("/api/v1/venue", v1VenueRouter);
 const v1productRoutes = require("./routes/v1/productRoutes");
 app.use("/api/v1/product", v1productRoutes);
 
+//? Deal Admin Endpoints
+const v1DealRouter = require("./routes/v1/dealRoutes");
+app.use("/api/v1/deal", v1DealRouter);
+
+//? User-Claimed Deal Endpoints
+const v1UserDealRouter = require("./routes/v1/userDealRoutes");
+app.use("/api/v1/user-deal", v1UserDealRouter);
+
+
 //? Post Endpoint
 const activityRoutes = require("./routes/v1/activityRoutes");
 const v1ActivityRouter = activityRoutes(io);

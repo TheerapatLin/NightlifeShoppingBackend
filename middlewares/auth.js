@@ -156,16 +156,19 @@ const verifyAccessTokenWeb = async (req, res, next) => {
           //     .status(401)
           //     .send({ status: "error", message: "Hardware ID does not exist!" });
           // }
+          console.log(`decoded.userId = ${decoded.userId}`);
           const lastAccessToken = await redis.get(
             `Last_Access_Token_${decoded.userId}_${req.headers["device-fingerprint"]}`
           );
-          // console.log("lastAccessToken = ", lastAccessToken);
+          console.log("lastAccessToken = ", lastAccessToken);
           if (lastAccessToken !== cookieAccessToken) {
-            return res
-              .status(401)
-              .send({ status: "error", message: `Incorrect Access Token!` });
+            return res.status(401).send({
+              status: "error",
+              message: `Incorrect Access Token! lastAccessToken = ${lastAccessToken}`,
+            });
           }
         }
+        console.log(`decode = ${JSON.stringify(decoded)}`);
         req.user = decoded;
         return next();
       }
@@ -187,12 +190,13 @@ const verifyAccessTokenWeb = async (req, res, next) => {
 };
 
 const authRoles = (requiredRoles) => (req, res, next) => {
-  const role = req.headers["role"]; // ✅ ใช้ req.headers แทน req.header
-
-  if (!role || !requiredRoles.includes(role)) { // ✅ เช็ก role ให้ถูกต้อง
+  const role = req.user.role; // ✅ ใช้ req.headers แทน req.header
+  console.log(`user role = ${role}`);
+  if (!role || !requiredRoles.includes(role)) {
+    // ✅ เช็ก role ให้ถูกต้อง
     return res.status(403).json({ message: "Access denied" });
   }
-  
+
   next(); // ✅ ให้ผ่านต่อไปเมื่อ role ถูกต้อง
 };
 
