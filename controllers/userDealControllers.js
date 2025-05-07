@@ -1,5 +1,6 @@
 const UserDeal = require("../schemas/v1/userdeal.schema");
 const Deal = require("../schemas/v1/deal.schema");
+const mongoose = require("mongoose");
 
 exports.claimDeal = async (req, res) => {
   try {
@@ -7,7 +8,14 @@ exports.claimDeal = async (req, res) => {
     const userId = req.user.userId;
 
     // 📌 1. ดึงดีล และตรวจสอบสถานะหลัก
+    if (!mongoose.Types.ObjectId.isValid(dealId)) {
+      console.log("dealId ไม่อยู่ใรรูปแบบ ObjectId");
+      return res.status(400).json({ message: "ไม่พบ dealId" });
+    }
     const deal = await Deal.findById(dealId);
+    console.log(`dealId = ${dealId}`);
+    console.log(`deal = ${deal}`);
+
     if (!deal || !deal.isActive || !deal.isPublished) {
       return res.status(404).json({ error: "Deal not available" });
     }
@@ -15,13 +23,20 @@ exports.claimDeal = async (req, res) => {
     const now = new Date();
 
     // 📌 2. ตรวจช่วงเวลาเปิดรับดีล
-    if ((deal.claimStartDate && now < deal.claimStartDate) ||
-        (deal.claimEndDate && now > deal.claimEndDate)) {
-      return res.status(400).json({ error: "Deal is not claimable at this time" });
+    if (
+      (deal.claimStartDate && now < deal.claimStartDate) ||
+      (deal.claimEndDate && now > deal.claimEndDate)
+    ) {
+      return res
+        .status(400)
+        .json({ error: "Deal is not claimable at this time" });
     }
 
     // 📌 3. ตรวจจำนวนทั้งหมดว่าหมดหรือยัง
-    if (deal.totalAvailable !== null && deal.totalClaimed >= deal.totalAvailable) {
+    if (
+      deal.totalAvailable !== null &&
+      deal.totalClaimed >= deal.totalAvailable
+    ) {
       return res.status(400).json({ error: "Deal has been fully claimed" });
     }
 
@@ -29,11 +44,16 @@ exports.claimDeal = async (req, res) => {
     const existingClaimCount = await UserDeal.countDocuments({
       userId,
       dealId,
-      isRevoked: false
+      isRevoked: false,
     });
 
-    if (deal.usageLimitPerUser !== null && existingClaimCount >= deal.usageLimitPerUser) {
-      return res.status(400).json({ error: "You have reached the claim limit for this deal" });
+    if (
+      deal.usageLimitPerUser !== null &&
+      existingClaimCount >= deal.usageLimitPerUser
+    ) {
+      return res
+        .status(400)
+        .json({ error: "You have reached the claim limit for this deal" });
     }
 
     // 📌 5. สร้าง expirationDate ของ user deal
@@ -50,8 +70,8 @@ exports.claimDeal = async (req, res) => {
       isPaid: deal.price > 0,
       metadata: {
         referrer: req.headers.referer || null,
-        userAgent: req.headers["user-agent"] || null
-      }
+        userAgent: req.headers["user-agent"] || null,
+      },
     });
 
     // 📌 7. เพิ่มจำนวน totalClaimed ใน Deal
@@ -70,7 +90,9 @@ exports.claimDeal = async (req, res) => {
 exports.getUserDeals = async (req, res) => {
   try {
     const userId = req.params.userId;
-    const deals = await UserDeal.find({ userId }).populate("dealId").sort({ claimedAt: -1 });
+    const deals = await UserDeal.find({ userId })
+      .populate("dealId")
+      .sort({ claimedAt: -1 });
     res.status(200).json(deals);
   } catch (err) {
     console.error("Error fetching user deals:", err);
@@ -78,21 +100,25 @@ exports.getUserDeals = async (req, res) => {
   }
 };
 
-exports.getUserDealById = async (req, res) => {
+exports.getUserDealsByUserId = async (req, res) => {
   try {
-    const userDeal = await UserDeal.findById(req.params.id).populate("dealId");
-    if (!userDeal) return res.status(404).json({ error: "User deal not found" });
-    res.status(200).json(userDeal);
+    const userDeals = await UserDeal.find({ userId: req.params.id }).populate("dealId");
+    if (!userDeals || userDeals.length === 0) {
+      return res.status(404).json({ error: "No deals found for this user" });
+    }
+    res.status(200).json(userDeals);
   } catch (err) {
-    console.error("Error fetching user deal:", err);
+    console.error("Error fetching user deals:", err);
     res.status(500).json({ error: "Internal server error" });
   }
 };
 
+
 exports.useUserDeal = async (req, res) => {
   try {
     const userDeal = await UserDeal.findById(req.params.id);
-    if (!userDeal) return res.status(404).json({ error: "User deal not found" });
+    if (!userDeal)
+      return res.status(404).json({ error: "User deal not found" });
     if (userDeal.isUsed) return res.status(400).json({ error: "Already used" });
 
     userDeal.isUsed = true;
