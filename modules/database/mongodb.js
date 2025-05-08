@@ -6,12 +6,13 @@ const { DATABASE_NAME } = process.env;
 
 const connectMongoDB = async () => {
   console.log(chalk.yellow(`Databse Name: ${DATABASE_NAME}`));
-  await mongoose
-    .connect(
-      MONGODBDATABASEURI,
-      { dbName: DATABASE_NAME },
-      { useNewUrlParser: true, useUnifiedTopology: true }
-    )
+  console.log(">>> MongoDB URI used:", process.env.MONGODBDATABASEURI);
+  await await mongoose
+    .connect(MONGODBDATABASEURI, {
+      dbName: DATABASE_NAME,
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    })
     .then(() => {
       console.log(chalk.green("MongoDB Connected"));
     })
