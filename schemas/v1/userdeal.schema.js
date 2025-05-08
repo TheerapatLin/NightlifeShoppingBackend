@@ -16,7 +16,7 @@ const userDealSchema = new Schema(
     pricePaid: { type: Number, required: true },
 
     // 🔢 เลข serial ของการใช้ดีลนี้ (เมื่อเริ่ม session)
-    useSerialNumber: { type: Number, default: null },
+    useSerialNumber: { type: Number },
 
     // ✅ ใช้ดีลแล้วหรือยัง (true เมื่อใช้ครบหมด หรือใช้ครั้งแรกแล้วในกรณีจำกัดครั้งเดียว)
     isUsed: { type: Boolean, default: false },

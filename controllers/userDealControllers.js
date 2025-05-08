@@ -7,40 +7,42 @@ exports.claimDeal = async (req, res) => {
     const { dealId } = req.body;
     const userId = req.user.userId;
 
-    // 📌 1. ดึงดีล และตรวจสอบสถานะหลัก
+    // 📌 1. ตรวจสอบ dealId ถูกต้อง
     if (!mongoose.Types.ObjectId.isValid(dealId)) {
-      console.log("dealId ไม่อยู่ใรรูปแบบ ObjectId");
-      return res.status(400).json({ message: "ไม่พบ dealId" });
+      console.log("dealId ไม่อยู่ในรูปแบบ ObjectId");
+      return res.status(400).json({ message: "ไม่พบ dealId ที่ถูกต้อง" });
     }
+
+    // 📌 2. ดึงดีลจาก DB และตรวจสอบสถานะ
     const deal = await Deal.findById(dealId);
     console.log(`dealId = ${dealId}`);
     console.log(`deal = ${deal}`);
 
     if (!deal || !deal.isActive || !deal.isPublished) {
-      return res.status(404).json({ error: "Deal not available" });
+      return res.status(404).json({ error: "ดีลนี้ไม่สามารถใช้งานได้" });
     }
 
     const now = new Date();
 
-    // 📌 2. ตรวจช่วงเวลาเปิดรับดีล
+    // 📌 3. ตรวจช่วงเวลาที่เปิดให้เคลม
     if (
       (deal.claimStartDate && now < deal.claimStartDate) ||
       (deal.claimEndDate && now > deal.claimEndDate)
     ) {
       return res
         .status(400)
-        .json({ error: "Deal is not claimable at this time" });
+        .json({ error: "ยังไม่ถึงเวลาหรือหมดเวลารับดีลนี้แล้ว" });
     }
 
-    // 📌 3. ตรวจจำนวนทั้งหมดว่าหมดหรือยัง
+    // 📌 4. ตรวจว่าดีลหมดจำนวนหรือยัง (totalAvailable)
     if (
       deal.totalAvailable !== null &&
       deal.totalClaimed >= deal.totalAvailable
     ) {
-      return res.status(400).json({ error: "Deal has been fully claimed" });
+      return res.status(400).json({ error: "ดีลนี้ถูกใช้ครบจำนวนแล้ว" });
     }
 
-    // 📌 4. ตรวจจำนวนที่ user คนนี้เคยเคลมไปแล้ว
+    // 📌 5. ตรวจว่าผู้ใช้คนนี้เคลมดีลนี้ไปแล้วกี่ครั้ง
     const existingClaimCount = await UserDeal.countDocuments({
       userId,
       dealId,
@@ -51,17 +53,15 @@ exports.claimDeal = async (req, res) => {
       deal.usageLimitPerUser !== null &&
       existingClaimCount >= deal.usageLimitPerUser
     ) {
-      return res
-        .status(400)
-        .json({ error: "You have reached the claim limit for this deal" });
+      return res.status(400).json({ error: "คุณใช้สิทธิ์เคลมดีลนี้ครบแล้ว" });
     }
 
-    // 📌 5. สร้าง expirationDate ของ user deal
+    // 📌 6. คำนวณวันหมดอายุเฉพาะของ user
     const expirationDate = deal.expirationDaysAfterClaim
       ? new Date(now.getTime() + deal.expirationDaysAfterClaim * 86400000)
       : deal.fixedExpirationDate || null;
 
-    // 📌 6. สร้าง UserDeal instance
+    // 📌 7. ✅ สร้าง UserDeal (ห้ามมี useSerialNumber เด็ดขาด)
     const userDeal = new UserDeal({
       userId,
       dealId,
@@ -74,15 +74,15 @@ exports.claimDeal = async (req, res) => {
       },
     });
 
-    // 📌 7. เพิ่มจำนวน totalClaimed ใน Deal
+    // 📌 8. อัปเดตยอด totalClaimed ในดีล
     deal.totalClaimed += 1;
 
-    // ⏳ Save ทั้ง deal และ user deal
+    // 📌 9. บันทึกทั้ง userDeal และ deal
     await Promise.all([userDeal.save(), deal.save()]);
 
     res.status(201).json(userDeal);
   } catch (err) {
-    console.error("Error claiming deal:", err);
+    console.error("❌ Error claiming deal:", err);
     res.status(400).json({ error: err.message });
   }
 };
@@ -144,46 +144,72 @@ exports.deleteUserDeal = async (req, res) => {
   }
 };
 
-// ✅ เริ่มใช้งานดีล พร้อมกำหนด serial number และเวลาหมดอายุ
+// ✅ เริ่มใช้งานดีล พร้อมกำหนด serial number, session, และยิง webhook
 exports.startUserDealSession = async (req, res) => {
-  const mongoose = require("mongoose");
   const session = await mongoose.startSession();
-  let serialNumber, expiresAt;
+  let serialNumber, expiresAt, userDeal, deal;
 
   try {
     const { userDealId } = req.body;
     const userId = req.user.userId;
 
     await session.withTransaction(async () => {
-      const userDeal = await UserDeal.findOne({ _id: userDealId, userId }).session(session);
+      // 🔍 ตรวจสอบ user deal และดีลต้นทาง
+      userDeal = await UserDeal.findOne({ _id: userDealId, userId }).session(
+        session
+      );
       if (!userDeal) throw new Error("ไม่พบ user deal นี้");
       if (userDeal.isActiveSession) throw new Error("session นี้เริ่มไปแล้ว");
 
-      const deal = await Deal.findById(userDeal.dealId).session(session);
+      deal = await Deal.findById(userDeal.dealId).session(session);
       if (!deal) throw new Error("ไม่พบ deal ต้นทาง");
 
+      // ⏳ คำนวณเวลาหมดอายุ session
       const now = new Date();
       expiresAt = deal.expirationAfterUseMinutes
         ? new Date(now.getTime() + deal.expirationAfterUseMinutes * 60000)
         : null;
 
+      // 🔢 กำหนด serial และ session
       userDeal.isActiveSession = true;
       userDeal.activeSessionExpiresAt = expiresAt;
       userDeal.useSerialNumber = deal.nextUseSerial;
       serialNumber = deal.nextUseSerial;
 
+      // ➕ เพิ่ม serial ไปยัง deal
       deal.nextUseSerial += 1;
 
-      await Promise.all([
-        userDeal.save({ session }),
-        deal.save({ session }),
-      ]);
+      await Promise.all([userDeal.save({ session }), deal.save({ session })]);
     });
+
+    // 🔽 Webhook หลังใช้ดีล (backend → backend เท่านั้น)
+    if (process.env.WEBHOOK_ON_DEAL_USE) {
+      try {
+        await axios.post(
+          process.env.WEBHOOK_ON_DEAL_USE,
+          {
+            userDealId: userDeal._id,
+            dealId: deal._id,
+            userId: userDeal.userId,
+            serialNumber: serialNumber,
+            expiresAt: expiresAt,
+            timestamp: new Date().toISOString(),
+          },
+          {
+            headers: {
+              "x-webhook-secret": process.env.WEBHOOK_SECRET,
+            },
+          }
+        );
+      } catch (err) {
+        console.warn("⚠️ Webhook failed:", err.message);
+      }
+    }
 
     res.status(200).json({
       message: "เริ่มใช้งานดีลสำเร็จแล้ว",
       serialNumber,
-      expiresAt
+      expiresAt,
     });
   } catch (err) {
     console.error("🔥 Transaction failed:", err);

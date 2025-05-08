@@ -189,6 +189,9 @@ app.use("/api/v1/deal", v1DealRouter);
 const v1UserDealRouter = require("./routes/v1/userDealRoutes");
 app.use("/api/v1/user-deal", v1UserDealRouter);
 
+//? Webhook
+const v1WebhookRouter = require("./routes/v1/webhookRoutes");
+app.use("/api/v1", v1WebhookRouter);
 
 //? Post Endpoint
 const activityRoutes = require("./routes/v1/activityRoutes");
