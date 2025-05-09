@@ -53,7 +53,10 @@ exports.claimDeal = async (req, res) => {
       deal.usageLimitPerUser !== null &&
       existingClaimCount >= deal.usageLimitPerUser
     ) {
-      return res.status(400).json({ error: "คุณใช้สิทธิ์เคลมดีลนี้ครบแล้ว" });
+      return res.status(400).json({
+        error: "คุณใช้สิทธิ์เคลมดีลนี้ครบแล้ว",
+        errorCode: "claimLimitExceeded",
+      });
     }
 
     // 📌 6. คำนวณวันหมดอายุเฉพาะของ user
