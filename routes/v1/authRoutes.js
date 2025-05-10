@@ -18,6 +18,7 @@ const {
   googleCallback,
   lineCallback,
   googleFlutterLogin,
+  googleWebLogin
 } = require("../../controllers/authControllers");
 
 const {
@@ -31,6 +32,7 @@ router.post("/register", registerRateLimiter, register);
 
 //? Login
 router.post("/login", loginRateLimiter, login);
+router.post("/google-web-login", loginRateLimiter, googleWebLogin);
 
 //? Logout
 router.post("/logout", logoutRateLimiter, verifyAccessTokenWeb, logout);

@@ -5,6 +5,7 @@ const { v4: uuidv4 } = require("uuid");
 const passport = require("passport");
 const bodyParser = require("body-parser");
 const { OAuth2Client } = require("google-auth-library");
+const axios = require("axios");
 
 require("../middlewares/passport/passport-local");
 //require('../middlewares/passport/passport-jwt');
@@ -315,6 +316,184 @@ const login = async (req, res, next) => {
       }
     }
   )(req, res, next);
+};
+
+const googleWebLogin = async (req, res) => {
+  const { token } = req.body;
+  const deviceFingerprint = req.headers["device-fingerprint"];
+  const businessId = req.headers["businessid"];
+
+  if (!token || !deviceFingerprint || !businessId) {
+    return res.status(400).json({
+      status: "error",
+      message: "Missing token, fingerprint, or business ID",
+    });
+  }
+
+  try {
+    const userInfoRes = await axios.get(
+      "https://www.googleapis.com/oauth2/v3/userinfo",
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    const { email, name, picture } = userInfoRes.data;
+
+    let user = await User.findOne({ "user.email": email });
+
+    if (!user) {
+      const userDataDoc = await regularUserData.create({
+        businessId,
+        profileImage: picture,
+        contactSocial: [],
+        imageUrl: [],
+        education: [],
+        workPlace: [],
+        address: [],
+        status: [],
+        level: [],
+        prefs: [],
+        badges: [],
+        monthlyRank: [],
+        numPost: 0,
+        numFollower: 0,
+        numFollowing: 0,
+        numNotification: 0,
+        numUnread: 0,
+        numCoin: 0,
+      });
+
+      user = await User.create({
+        user: {
+          name,
+          email,
+          imageURL: picture,
+          activated: true,
+          verified: { email: true, phone: false },
+        },
+        role: "user",
+        userType: "regular",
+        userTypeData: "RegularUserData",
+        userData: userDataDoc._id,
+        provider: "google",
+        businessId,
+        loggedInDevices: [],
+      });
+    }
+
+    const userId = user._id;
+
+    const accessToken = jwt.sign(
+      {
+        userId,
+        name: user.user.name,
+        email: user.user.email,
+        businessId,
+        role: user.role ?? "user",
+      },
+      process.env.JWT_ACCESS_TOKEN_SECRET,
+      { expiresIn: process.env.ACCESS_TOKEN_EXPIRES }
+    );
+
+    const refreshToken = jwt.sign(
+      {
+        userId,
+        name: user.user.name,
+        email: user.user.email,
+        businessId,
+        role: user.role ?? "user",
+      },
+      process.env.JWT_REFRESH_TOKEN_SECRET,
+      { expiresIn: process.env.REFRESH_TOKEN_EXPIRES }
+    );
+
+    await redis.sAdd(`Device_Fingerprint_${userId}`, deviceFingerprint);
+    await redis.set(`Last_Login_${userId}_${deviceFingerprint}`, Date.now());
+
+    const refreshTokenOTP = Math.floor(
+      100000 + Math.random() * 900000
+    ).toString();
+    
+    await redis.set(
+      `Last_Refresh_Token_OTP_${userId}_${deviceFingerprint}`,
+      refreshTokenOTP
+    );
+    await redis.set(
+      `Last_Refresh_Token_${userId}_${deviceFingerprint}`,
+      refreshToken
+    );
+    await redis.set(
+      `Last_Access_Token_${userId}_${deviceFingerprint}`,
+      accessToken
+    );
+
+    res.cookie("accessToken", accessToken, {
+      path: "/",
+      httpOnly: true,
+      secure: true,
+      sameSite: "None",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    res.cookie("refreshToken", refreshToken, {
+      path: "/",
+      httpOnly: true,
+      secure: true,
+      sameSite: "None",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    const deviceIndex = user.loggedInDevices.findIndex(
+      (d) => d.deviceFingerprint === deviceFingerprint
+    );
+
+    if (deviceIndex === -1) {
+      user.loggedInDevices.push({
+        deviceFingerprint,
+        lastLogin: Date.now(),
+      });
+    } else {
+      user.loggedInDevices[deviceIndex].lastLogin = Date.now();
+    }
+
+    await user.save();
+
+    res.status(200).json({
+      status: "success",
+      message: "Google Login Success",
+      data: {
+        userId: user._id,
+        user: {
+          name: user.user.name,
+          role: user.role ?? "user",
+          email: user.user.email,
+          phone: user.user.phone,
+          activated: user.user.activated,
+          verified: user.user.verified,
+        },
+        imageURL: user.user.imageURL,
+        tokens: {
+          accessToken,
+          refreshToken,
+          refreshTokenOTP,
+        },
+      },
+    });
+  } catch (error) {
+    console.error(
+      "Google login error:",
+      error?.response?.data || error.message
+    );
+    return res
+      .status(401)
+      .json({
+        status: "error",
+        message: "Invalid Google token or user creation failed",
+      });
+  }
 };
 
 const logout = async (req, res, next) => {
@@ -729,4 +908,5 @@ module.exports = {
   googleCallback,
   lineCallback,
   googleFlutterLogin,
+  googleWebLogin,
 };

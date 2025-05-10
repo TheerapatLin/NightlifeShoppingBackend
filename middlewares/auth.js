@@ -112,7 +112,8 @@ const verifyAccessTokenWeb = async (req, res, next) => {
     let macAddressRegex = new RegExp(
       /^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})|([0-9a-fA-F]{4}.[0-9a-fA-F]{4}.[0-9a-fA-F]{4})$/
     );
-    // console.log("verifyAccessTokenWeb ");
+    console.log("----- verifyAccessTokenWeb ");
+    console.log(`----- cookieAccessToken = ${cookieAccessToken}`);
     if (!req.headers["device-fingerprint"]) {
       console.log("Device-fingerprint is required!");
       return res
