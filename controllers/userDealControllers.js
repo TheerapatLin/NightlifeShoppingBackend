@@ -178,6 +178,7 @@ exports.startUserDealSession = async (req, res) => {
       userDeal.activeSessionExpiresAt = expiresAt;
       userDeal.useSerialNumber = deal.nextUseSerial;
       serialNumber = deal.nextUseSerial;
+      userDeal.lastUsedAt = new Date();
 
       // ➕ เพิ่ม serial ไปยัง deal
       deal.nextUseSerial += 1;
