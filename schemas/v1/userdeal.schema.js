@@ -57,7 +57,13 @@ const userDealSchema = new Schema(
 );
 
 // 🔒 Unique serial number ต่อดีล (กันการซ้ำเลขภายในดีลเดียวกัน)
-userDealSchema.index({ dealId: 1, useSerialNumber: 1 }, { unique: true, sparse: true });
+userDealSchema.index(
+  { dealId: 1, useSerialNumber: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { useSerialNumber: { $exists: true } },
+  }
+);
 
 // 🏃‍♂️ เพิ่ม index เร่งความเร็ว query สำคัญ
 userDealSchema.index({ userId: 1, dealId: 1 }); // สำหรับค้นหาดีลของ user
