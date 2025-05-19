@@ -5,8 +5,8 @@ const Schema = mongoose.Schema;
 const featuredItemSchema = new Schema({
   nameTH: { type: String, required: true },
   nameEN: { type: String, required: true },
-  descriptionTH : { type: String, default: "" },
-  descriptionEN : { type: String, default: "" },
+  descriptionTH: { type: String, default: "" },
+  descriptionEN: { type: String, default: "" },
   category: {
     type: String,
     enum: ["Drink", "Food", "Other"],
@@ -49,6 +49,7 @@ const venueSchema = new Schema(
         index: "2dsphere", // สำหรับ geospatial query
       },
       name: String,
+      area: String,
       description: String,
     },
 
@@ -62,6 +63,9 @@ const venueSchema = new Schema(
 
     // รูปหลัก
     image: [{ type: String }],
+
+    dressCode: { type: String, default: "" },
+    vibes: { type: String, default: "" },
 
     // เมนูเด่นหรือของแนะนำ
     featuredItems: [featuredItemSchema],
