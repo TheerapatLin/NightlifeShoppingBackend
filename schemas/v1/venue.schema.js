@@ -48,9 +48,9 @@ const venueSchema = new Schema(
         required: true, // [longitude, latitude]
         index: "2dsphere", // สำหรับ geospatial query
       },
-      name: String,
-      area: String,
-      description: String,
+      name: { type: String, default: "" },
+      area: { type: String, default: "" },
+      description: { type: String, default: "" },
     },
 
     // ประเภทของร้าน
