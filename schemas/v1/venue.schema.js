@@ -66,7 +66,7 @@ const venueSchema = new Schema(
 
     dressCode: { type: String, default: "" },
     vibes: { type: String, default: "" },
-
+    special: { type: String, default: "" },
     // เมนูเด่นหรือของแนะนำ
     featuredItems: [featuredItemSchema],
 
