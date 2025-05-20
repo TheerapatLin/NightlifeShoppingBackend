@@ -57,9 +57,11 @@ const venueSchema = new Schema(
     type: {
       type: String,
       required: true,
-      enum: ["Nightclub", "Bar", "Restaurant", "Food", "Activity"],
+      enum: ["Nightclub", "Bar", "Restaurant", "Food", "Activity", "Roof Top"],
       index: true,
     },
+
+    musicTypes: { type: String, default: "" },
 
     // รูปหลัก
     image: [{ type: String }],
@@ -67,6 +69,7 @@ const venueSchema = new Schema(
     dressCode: { type: String, default: "" },
     vibes: { type: String, default: "" },
     special: { type: String, default: "" },
+
     // เมนูเด่นหรือของแนะนำ
     featuredItems: [featuredItemSchema],
 
@@ -95,15 +98,42 @@ const venueSchema = new Schema(
 
     // เวลาเปิดร้าน
     openingHours: {
-      monday: { type: String, default: "" },
-      tuesday: { type: String, default: "" },
-      wednesday: { type: String, default: "" },
-      thursday: { type: String, default: "" },
-      friday: { type: String, default: "" },
-      saturday: { type: String, default: "" },
-      sunday: { type: String, default: "" },
+      monday: {
+        open: { type: String, default: "18:00" }, // 6 โมงเย็น
+        close: { type: String, default: "02:00" }, // ตี 2
+      },
+      tuesday: {
+        open: { type: String, default: "18:00" },
+        close: { type: String, default: "02:00" },
+      },
+      wednesday: {
+        open: { type: String, default: "18:00" },
+        close: { type: String, default: "02:00" },
+      },
+      thursday: {
+        open: { type: String, default: "18:00" },
+        close: { type: String, default: "02:00" },
+      },
+      friday: {
+        open: { type: String, default: "18:00" },
+        close: { type: String, default: "02:00" },
+      },
+      saturday: {
+        open: { type: String, default: "18:00" },
+        close: { type: String, default: "02:00" },
+      },
+      sunday: {
+        open: { type: String, default: "18:00" },
+        close: { type: String, default: "02:00" },
+      },
     },
+    
+    longBannerImg:{ type: String, default: "" },
+    shortBannerImg:{ type: String, default: "" },
 
+    // แท็กและบริการเสริม
+    isBookable: { type: Boolean, default: false },
+    linkWhenUnbookable: { type: String, default: "" },
     // แท็กและบริการเสริม
     tags: [{ type: String, index: true }],
     amenities: [{ type: String }],
