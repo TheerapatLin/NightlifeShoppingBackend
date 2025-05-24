@@ -134,7 +134,7 @@ io.on("connection", (socket) => {
 
 const { webhookHandler } = require("./controllers/orderControllers");
 app.post(
-  "/api/v1/order/webhook",
+  "/stripe-webhook",
   express.raw({ type: "application/json" }),
   webhookHandler
 );
