@@ -24,7 +24,6 @@ redis.on("error", (err) => console.log("Redis Client Error", err));
 
 module.exports = redis;
 
-
 //? Modules
 require("dotenv").config({ path: `.env.${process.env.NODE_ENV}` });
 
@@ -136,6 +135,10 @@ const { webhookHandler } = require("./controllers/orderControllers");
 app.post(
   "/stripe-webhook",
   express.raw({ type: "application/json" }),
+  (req, res, next) => {
+    console.log("📦 isBuffer?", Buffer.isBuffer(req.body));
+    next();
+  }, //t
   webhookHandler
 );
 app.use(express.json());
