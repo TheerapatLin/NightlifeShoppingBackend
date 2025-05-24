@@ -26,6 +26,7 @@ const {
   getAllAccounts,
   deleteOneAccount,
   deleteAllAccounts,
+  updateUserProfile,
   updateBusinessesByUserId,
   setPassword,
   setPasswordPage,
@@ -34,6 +35,7 @@ const {
 const {
   verifyAccessToken,
   verifyRefreshToken,
+  verifyAccessTokenWeb,
 } = require("../../middlewares/auth");
 
 //? Set Password
@@ -87,7 +89,11 @@ router.post(
 );
 
 //? Get One Account
-router.get("/:user", [getAccountRateLimiter, verifyAccessToken], getOneAccount);
+router.get("/me", verifyAccessTokenWeb, getOneAccount);
+router.get("/getuser/:user", [getAccountRateLimiter, verifyAccessToken], getOneAccount);
+router.get("/getuserweb/:user", [getAccountRateLimiter, verifyAccessTokenWeb], getOneAccount);
+
+router.put("/update", verifyAccessTokenWeb, updateUserProfile);
 
 router.get("/", [getAccountsRateLimiter, verifyAccessToken], getAllAccounts);
 

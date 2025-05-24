@@ -2,6 +2,8 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const axios = require("axios");
+const mongoose = require("mongoose");
+const RegularUserData = require("../schemas/v1/userData/regularUserData.schema");
 
 require("dotenv").config({ path: `.env.${process.env.NODE_ENV}` });
 
@@ -11,6 +13,181 @@ const sendVerifyEmail = require("../modules/email/sendVerifyEmail");
 const sendResetPasswordEmail = require("../modules/email/sendResetPasswordEmail");
 
 const user = require("../schemas/v1/user.schema");
+
+const getOneAccount = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).send({
+        status: "error",
+        message: "Invalid user ID format",
+      });
+    }
+
+    const foundUser = await user.findById(userId).populate("userData");
+
+    if (!foundUser) {
+      return res.status(404).send({
+        status: "error",
+        message: `User ID ${userId} not found.`,
+      });
+    }
+
+    return res.status(200).send({
+      authenticated_user: req.user,
+      status: "success",
+      message: `User data loaded.`,
+      data: foundUser,
+    });
+  } catch (err) {
+    return res.status(500).send({
+      status: "error",
+      message: err.message || "Failed to retrieve user profile",
+    });
+  }
+};
+
+// const getOneAccount = async (req, res) => {
+//   const userId = req.params.user;
+
+//   try {
+//     let findUser = await user.findOne({
+//       $or: [{ userId: userId }, { "user.email": userId }],
+//     });
+
+//     if (findUser) {
+//       // const accessToken = req.headers["authorization"].replace("Bearer ", "");
+
+//       //await redis.sAdd(`Used_Access_Token_${req.user.userId}`, accessToken);
+
+//       const newAccessToken = jwt.sign(
+//         { userId: req.user.userId, name: req.user.name, email: req.user.email },
+//         process.env.JWT_ACCESS_TOKEN_SECRET,
+//         { expiresIn: process.env.ACCESS_TOKEN_EXPIRES }
+//       );
+//       redis.set(
+//         `Last_Access_Token_${req.user.userId}_${req.headers["hardware-id"]}`,
+//         newAccessToken
+//       );
+
+//       await res.status(200).send({
+//         authenticated_user: req.user,
+//         status: "success",
+//         message: `User ID ${userId} was found.`,
+//         data: findUser,
+//         token: newAccessToken,
+//       });
+//     } else {
+//       await res
+//         .status(404)
+//         .send({ status: "error", message: `User ID ${userId} was not found.` });
+//     }
+//   } catch (err) {
+//     await res.status(500).send({
+//       status: "error",
+//       message: err.message || `Error retrieving user ID ${userId}`,
+//     });
+//   }
+// };
+
+const updateUserProfile = async (req, res) => {
+  const userId = req.user.userId;
+  const updates = req.body;
+
+  try {
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res
+        .status(400)
+        .send({ status: "error", message: "Invalid user ID format" });
+    }
+
+    const foundUser = await user.findById(userId);
+
+    if (!foundUser) {
+      return res
+        .status(404)
+        .send({ status: "error", message: "User not found" });
+    }
+
+    let foundRegularUserData = await RegularUserData.findById(
+      foundUser.userData
+    );
+
+    // ✅ ถ้าไม่มี RegularUserData ให้สร้างใหม่ พร้อมกำหนด gender เป็น "unspecified" ถ้าไม่ได้ส่งมา
+    if (!foundRegularUserData) {
+      foundRegularUserData = new RegularUserData({
+        gender:
+          updates.gender && updates.gender !== ""
+            ? updates.gender
+            : "unspecified",
+      });
+      await foundRegularUserData.save();
+      foundUser.userData = foundRegularUserData._id;
+    }
+
+    // ✅ อัปเดตเฉพาะฟิลด์ที่อนุญาตใน user schema
+    const allowedUserFields = ["name"];
+    allowedUserFields.forEach((key) => {
+      if (updates[key] !== undefined) {
+        foundUser.user[key] = updates[key];
+      }
+    });
+
+    // ✅ อัปเดตเฉพาะฟิลด์ที่อนุญาตใน regularUserData schema
+    const allowedRegularFields = [
+      "gender",
+      "birthday",
+      "nationality",
+      "nationalId",
+      "profileImage",
+      "imageUrl",
+      "contactSocial",
+      "education",
+      "workPlace",
+      "address",
+      "prefs",
+    ];
+
+    allowedRegularFields.forEach((key) => {
+      if (updates[key] !== undefined) {
+        // ⚠️ หลีกเลี่ยงการกำหนดค่าว่างให้กับ enum
+        if (key === "gender" && updates[key] === "") {
+          foundRegularUserData[key] = "unspecified";
+        } else {
+          foundRegularUserData[key] = updates[key];
+        }
+      }
+    });
+
+    await foundUser.save();
+    await foundRegularUserData.save();
+
+    return res.status(200).send({
+      status: "success",
+      message: "User profile updated successfully",
+      data: {
+        userId: foundUser._id,
+        name: foundUser.user.name,
+        email: foundUser.user.email,
+        gender: foundRegularUserData.gender,
+        birthday: foundRegularUserData.birthday,
+        profileImage: foundRegularUserData.profileImage,
+        nationality: foundRegularUserData.nationality,
+        contactSocial: foundRegularUserData.contactSocial,
+        education: foundRegularUserData.education,
+        workPlace: foundRegularUserData.workPlace,
+        address: foundRegularUserData.address,
+        prefs: foundRegularUserData.prefs,
+      },
+    });
+  } catch (error) {
+    return res.status(500).send({
+      status: "error",
+      message: error.message || "Failed to update user",
+    });
+  }
+};
 
 const changePassword = async (req, res) => {
   if (!req.body) {
@@ -297,7 +474,7 @@ const verifyEmail = async (req, res) => {
           "user.verified.phone": true,
         }
       );
-      await redis.del(email); 
+      await redis.del(email);
 
       //res.status(200).send({ message: 'E-mail has been successfully verified!'});
       res.redirect("https://www.jaidee-dev.shop/emailverified");
@@ -724,49 +901,6 @@ const verifyRefreshTokenOTP = async (req, res) => {
   }
 };
 
-const getOneAccount = async (req, res) => {
-  const userId = req.params.user;
-
-  try {
-    let findUser = await user.findOne({
-      $or: [{ userId: userId }, { "user.email": userId }],
-    });
-
-    if (findUser) {
-      // const accessToken = req.headers["authorization"].replace("Bearer ", "");
-
-      //await redis.sAdd(`Used_Access_Token_${req.user.userId}`, accessToken);
-
-      const newAccessToken = jwt.sign(
-        { userId: req.user.userId, name: req.user.name, email: req.user.email },
-        process.env.JWT_ACCESS_TOKEN_SECRET,
-        { expiresIn: process.env.ACCESS_TOKEN_EXPIRES }
-      );
-      redis.set(
-        `Last_Access_Token_${req.user.userId}_${req.headers["hardware-id"]}`,
-        newAccessToken
-      );
-
-      await res.status(200).send({
-        authenticated_user: req.user,
-        status: "success",
-        message: `User ID ${userId} was found.`,
-        data: findUser,
-        token: newAccessToken,
-      });
-    } else {
-      await res
-        .status(404)
-        .send({ status: "error", message: `User ID ${userId} was not found.` });
-    }
-  } catch (err) {
-    await res.status(500).send({
-      status: "error",
-      message: err.message || `Error retrieving user ID ${userId}`,
-    });
-  }
-};
-
 const getAllAccounts = async (req, res) => {
   let allUsers = await user.find();
   let allUsersCount = await user.count();
@@ -1048,4 +1182,5 @@ module.exports = {
   setPassword,
   setPasswordPage,
   checkAccount,
+  updateUserProfile,
 };

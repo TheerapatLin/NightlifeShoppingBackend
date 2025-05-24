@@ -7,8 +7,8 @@ const regularUserDataSchema = new mongoose.Schema({
   businessId: { type: String },
   gender: {
     type: String,
-    enum: ["male", "female", "other", null],
-    default: null,
+    enum: ["male", "female", "other", "unspecified"],
+    default: "unspecified",
   },
   nationality: { type: String, default: null },
   nationalId: { type: String, default: null },
