@@ -1,0 +1,117 @@
+const mongoose = require("mongoose");
+
+const activityOrderSchema = new mongoose.Schema(
+  {
+    paymentIntentId: { type: String, required: true },
+
+    activityId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Activity",
+      required: true,
+    },
+
+    scheduleId: {
+      type: mongoose.Schema.Types.ObjectId,
+      required: true,
+    },
+
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+
+    status: {
+      type: String,
+      enum: ["paid", "pending", "failed", "refunded", "cancelled"],
+      default: "pending",
+    },
+
+    // ราคาที่ลูกค้าต้องจ่าย (ยังไม่รวมส่วนลด)
+    originalPrice: {
+      type: Number,
+      required: true,
+    },
+
+    // ส่วนลดที่ได้รับ (อาจมาจากโค้ด หรือโปรโมชั่น)
+    discountAmount: {
+      type: Number,
+      default: 0,
+    },
+
+    // ราคาที่จ่ายจริงหลังหักส่วนลด
+    paidAmount: {
+      type: Number,
+      required: true,
+    },
+
+    // โมดของ payment (test / live)
+    paymentMode: {
+      type: String,
+      enum: ["test", "live"],
+      default: "test",
+    },
+
+    // จำนวนผู้ใหญ่และเด็ก
+    adults: {
+      type: Number,
+      default: 1,
+      min: 0,
+    },
+
+    children: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    // ID ของโค้ดส่วนลดที่ใช้ (ถ้ามี)
+    discountCodeId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "DiscountCode",
+      default: null,
+    },
+
+    // ID ของ affiliate ผู้ที่แชร์ลิงก์แล้วมีคนจ่ายเงิน
+    affiliateUserId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+
+    // ช่องทางการชำระเงิน เช่น stripe
+    paymentGateway: {
+      type: String,
+      default: "stripe",
+    },
+
+    // วันที่ลูกค้าทำการจอง (เวลาที่เริ่ม initiate booking)
+    bookingDate: {
+      type: Date,
+      default: Date.now,
+    },
+
+    // วันที่ทำการชำระเงินเสร็จ (เวลาจ่ายเสร็จ)
+    paidAt: {
+      type: Date,
+      default: null,
+    },
+
+    // ข้อมูล debug หรือ webhook response ที่เกี่ยวข้อง
+    paymentMetadata: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {},
+    },
+
+    // บันทึกหรือหมายเหตุจากแอดมิน
+    adminNote: {
+      type: String,
+      default: "",
+    },
+  },
+  { timestamps: true }
+);
+
+const ActivityOrder = mongoose.model("ActivityOrder", activityOrderSchema);
+
+module.exports = ActivityOrder;

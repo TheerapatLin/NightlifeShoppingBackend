@@ -32,18 +32,18 @@ const verifyAccessToken = async (req, res, next) => {
       /^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})|([0-9a-fA-F]{4}.[0-9a-fA-F]{4}.[0-9a-fA-F]{4})$/
     );
 
-    console.log("verifyAccessToken");
+    //console.log("verifyAccessToken");
     if (!req.headers["device-fingerprint"]) {
-      console.log("Device-fingerprint is required!");
+      //console.log("Device-fingerprint is required!");
       return res
         .status(401)
         .send({ status: "error", message: "Device-fingerprint is required!" });
     } else {
-      console.log(req.headers["device-fingerprint"]);
+      //console.log(req.headers["device-fingerprint"]);
     }
 
     if (!req.headers["authorization"]) {
-      console.log("TOKEN is required for authentication");
+      //console.log("TOKEN is required for authentication");
       return res.status(401).send({
         status: "error",
         message: "TOKEN is required for authentication",
@@ -92,7 +92,7 @@ const verifyAccessToken = async (req, res, next) => {
       superAdminApiKey &&
       superAdminApiKey === process.env.SUPER_ADMIN_API_KEY
     ) {
-      console.log("you are in super admin mode : (from verifyAccessToken)");
+      //console.log("you are in super admin mode : (from verifyAccessToken)");
       return next();
     } else {
       return res
@@ -112,19 +112,19 @@ const verifyAccessTokenWeb = async (req, res, next) => {
     let macAddressRegex = new RegExp(
       /^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})|([0-9a-fA-F]{4}.[0-9a-fA-F]{4}.[0-9a-fA-F]{4})$/
     );
-    console.log("----- verifyAccessTokenWeb ");
-    console.log(`----- cookieAccessToken = ${cookieAccessToken}`);
+    //console.log("----- verifyAccessTokenWeb ");
+    //console.log(`----- cookieAccessToken = ${cookieAccessToken}`);
     if (!req.headers["device-fingerprint"]) {
-      console.log("Device-fingerprint is required!");
+      //console.log("Device-fingerprint is required!");
       return res
         .status(401)
         .send({ status: "error", message: "Device-fingerprint is required!" });
     } else {
-      console.log(req.headers["device-fingerprint"]);
+      //console.log(req.headers["device-fingerprint"]);
     }
 
     if (!cookieAccessToken) {
-      console.log("Cookie AccessToken is required for authentication");
+      //console.log("Cookie AccessToken is required for authentication");
       return res.status(401).send({
         status: "error",
         message: "Cookie AccessToken is required for authentication",
@@ -157,11 +157,11 @@ const verifyAccessTokenWeb = async (req, res, next) => {
           //     .status(401)
           //     .send({ status: "error", message: "Hardware ID does not exist!" });
           // }
-          console.log(`decoded.userId = ${decoded.userId}`);
+          //console.log(`decoded.userId = ${decoded.userId}`);
           const lastAccessToken = await redis.get(
             `Last_Access_Token_${decoded.userId}_${req.headers["device-fingerprint"]}`
           );
-          console.log("lastAccessToken = ", lastAccessToken);
+          //console.log("lastAccessToken = ", lastAccessToken);
           if (lastAccessToken !== cookieAccessToken) {
             return res.status(401).send({
               status: "error",
@@ -169,7 +169,7 @@ const verifyAccessTokenWeb = async (req, res, next) => {
             });
           }
         }
-        console.log(`decode = ${JSON.stringify(decoded)}`);
+        //console.log(`decode = ${JSON.stringify(decoded)}`);
         req.user = decoded;
         return next();
       }
@@ -180,7 +180,7 @@ const verifyAccessTokenWeb = async (req, res, next) => {
       superAdminApiKey &&
       superAdminApiKey === process.env.SUPER_ADMIN_API_KEY
     ) {
-      console.log("you are in super admin mode : (from verifyAccessToken)");
+      //console.log("you are in super admin mode : (from verifyAccessToken)");
       return next();
     } else {
       return res
@@ -192,7 +192,7 @@ const verifyAccessTokenWeb = async (req, res, next) => {
 
 const authRoles = (requiredRoles) => (req, res, next) => {
   const role = req.user.role; // ✅ ใช้ req.headers แทน req.header
-  console.log(`user role = ${role}`);
+  //console.log(`user role = ${role}`);
   if (!role || !requiredRoles.includes(role)) {
     // ✅ เช็ก role ให้ถูกต้อง
     return res.status(403).json({ message: "Access denied" });

@@ -131,7 +131,7 @@ io.on("connection", (socket) => {
   });
 });
 
-const { webhookHandler } = require("./controllers/orderControllers");
+const { webhookHandler } = require("./controllers/activityOrderControllers");
 app.post(
   "/stripe-webhook",
   express.raw({ type: "application/json" }),
@@ -154,8 +154,8 @@ const v1AuthRouter = require("./routes/v1/authRoutes");
 app.use("/api/v1/auth", v1AuthRouter);
 
 //? Order Endpoints
-const { router: v1OrderRouter } = require("./routes/v1/orderRoutes")(io);
-app.use("/api/v1/order", v1OrderRouter);
+const { router: v1OrderRouter } = require("./routes/v1/activityOrderRoutes")(io);
+app.use("/api/v1/activity-order", v1OrderRouter);
 
 //? Account Endpoints
 const v1AccountRouter = require("./routes/v1/accountsRoutes");
