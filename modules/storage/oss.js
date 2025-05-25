@@ -1,11 +1,10 @@
-const OSS = require('ali-oss');
+const OSS = require("ali-oss");
 
 const OSSStorage = new OSS({
-    //region: 'oss-ap-southeast-1',
-    endpoint: 'oss-ap-southeast-7.aliyuncs.com',
-    accessKeyId: 'LTAI5tJCLMZwXknQhGvpUzow',
-    accessKeySecret: '4CcH31CEZmrPB0Xg5E6mWiCtZGrnnV',
-    bucket: 'healworld-app',
+  endpoint: process.env.OSS_ENDPOINT,
+  accessKeyId: process.env.OSS_ACCESS_KEY_ID,
+  accessKeySecret: process.env.OSS_ACCESS_KEY_SECRET,
+  bucket: process.env.OSS_BUCKET_NAME,
 });
 
 module.exports = { OSSStorage };

@@ -214,6 +214,7 @@ const login = async (req, res, next) => {
             email: foundUserEmail,
             businessId: businessId,
             role: foundUser.role,
+            userData: foundUser.userData?.toString(), // ✅ เพิ่มตรงนี้
           },
           process.env.JWT_REFRESH_TOKEN_SECRET,
           { expiresIn: process.env.REFRESH_TOKEN_EXPIRES }
@@ -393,6 +394,7 @@ const googleWebLogin = async (req, res) => {
         email: user.user.email,
         businessId,
         role: user.role ?? "user",
+        userData: user.userData?.toString()
       },
       process.env.JWT_ACCESS_TOKEN_SECRET,
       { expiresIn: process.env.ACCESS_TOKEN_EXPIRES }
@@ -565,6 +567,7 @@ const refresh = async (req, res, next) => {
       email: req.user.email,
       businessId: req.user.businessId,
       role: req.role ?? "user",
+      userData: req.user.userData?.toString(), // ✅ เพิ่มตรงนี้เช่นกัน
     },
     process.env.JWT_ACCESS_TOKEN_SECRET,
     { expiresIn: process.env.ACCESS_TOKEN_EXPIRES }
@@ -606,6 +609,7 @@ const refreshWeb = async (req, res, next) => {
       email: req.user.email,
       businessId: req.user.businessId,
       role: req.user.role,
+      userData: req.user.userData?.toString(), // ✅ เพิ่มตรงนี้เช่นกัน
     },
     process.env.JWT_ACCESS_TOKEN_SECRET,
     { expiresIn: process.env.ACCESS_TOKEN_EXPIRES }

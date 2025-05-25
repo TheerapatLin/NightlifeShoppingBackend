@@ -1,5 +1,9 @@
 const express = require("express");
 const router = express.Router();
+const path = require("path");
+const multer = require("multer");
+const processFiles = require("../../modules/multer/multer");
+const upload = multer({ processFiles });
 
 //test update gitlab
 const {
@@ -30,6 +34,7 @@ const {
   updateBusinessesByUserId,
   setPassword,
   setPasswordPage,
+  uploadProfileImage
 } = require("../../controllers/accountsControllers");
 
 const {
@@ -90,11 +95,23 @@ router.post(
 
 //? Get One Account
 router.get("/me", verifyAccessTokenWeb, getOneAccount);
-router.get("/getuser/:user", [getAccountRateLimiter, verifyAccessToken], getOneAccount);
-router.get("/getuserweb/:user", [getAccountRateLimiter, verifyAccessTokenWeb], getOneAccount);
+router.get(
+  "/getuser/:user",
+  [getAccountRateLimiter, verifyAccessToken],
+  getOneAccount
+);
+router.get(
+  "/getuserweb/:user",
+  [getAccountRateLimiter, verifyAccessTokenWeb],
+  getOneAccount
+);
 
 router.put("/update", verifyAccessTokenWeb, updateUserProfile);
-
+router.put(
+  "/upload-profile-image",
+  [verifyAccessTokenWeb, upload.single("profileImage")],
+  uploadProfileImage
+);
 router.get("/", [getAccountsRateLimiter, verifyAccessToken], getAllAccounts);
 
 router.delete(

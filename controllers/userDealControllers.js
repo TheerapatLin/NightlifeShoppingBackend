@@ -109,7 +109,10 @@ exports.getUserDealsByUserId = async (req, res) => {
       "dealId"
     );
     if (!userDeals || userDeals.length === 0) {
+      //console.log(`No deals found for this user`);
       return res.status(404).json({ error: "No deals found for this user" });
+    } else {
+      //console.log(`userDeals.length = ${userDeals}`);
     }
     res.status(200).json(userDeals);
   } catch (err) {

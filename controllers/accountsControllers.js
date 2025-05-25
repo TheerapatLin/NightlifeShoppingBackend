@@ -4,6 +4,8 @@ const crypto = require("crypto");
 const axios = require("axios");
 const mongoose = require("mongoose");
 const RegularUserData = require("../schemas/v1/userData/regularUserData.schema");
+const { OSSStorage } = require("../modules/storage/oss");
+const path = require("path");
 
 require("dotenv").config({ path: `.env.${process.env.NODE_ENV}` });
 
@@ -90,6 +92,42 @@ const getOneAccount = async (req, res) => {
 //     });
 //   }
 // };
+
+const uploadProfileImage = async (req, res) => {
+  //console.log("start uploadProfileImage");
+  try {
+    const user = req.user;
+    //console.log("user", user);
+    const userData = await RegularUserData.findById(user.userData);
+
+    if (!userData)
+      return res.status(404).json({ error: "User data not found" });
+
+    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+
+    const ext = path.extname(req.file.originalname) || ".jpg"; // fallback
+    const filename = `${user.userId}_${Date.now()}${ext}`;
+    const objectName = `profile/${user.userId}/${filename}`;
+
+    // Upload buffer to OSS
+    const result = await OSSStorage.put(
+      objectName,
+      Buffer.from(req.file.buffer)
+    );
+
+    //const imageUrl = `https://${OSSStorage.options.bucket}.${OSSStorage.options.endpoint}/${objectName}`;
+    const imageUrl = objectName;
+
+    userData.profileImage = imageUrl;
+    await userData.save();
+
+    res.json({ success: true, profileImage: imageUrl });
+  } catch (err) {
+    //console.error("Upload failed:", err);
+    console.log("Upload failed:", err);
+    res.status(500).json({ error: "Upload failed" });
+  }
+};
 
 const updateUserProfile = async (req, res) => {
   const userId = req.user.userId;
@@ -1183,4 +1221,5 @@ module.exports = {
   setPasswordPage,
   checkAccount,
   updateUserProfile,
+  uploadProfileImage,
 };
