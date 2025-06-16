@@ -19,6 +19,7 @@ const {
   acceptJoin,
   declineJoin,
   banJoin,
+  getAffiliateEnabledActivities
 } = require("../../controllers/activityController");
 
 module.exports = function (io) {
@@ -35,6 +36,9 @@ module.exports = function (io) {
   // Get All Activities
   router.get("/", getAllActivity);
 
+  // เพิ่มใน activityRoutes.js
+  router.get("/affiliate-enabled", getAffiliateEnabledActivities);
+  
   // Get an Activity by ActivityId
   router.get("/:activityId", getAcivityById);
 
@@ -70,6 +74,8 @@ module.exports = function (io) {
 
   // Ban participant
   router.post("/:activityId/ban", banJoin);
+
+  
 
   module.exports = router;
   return router;

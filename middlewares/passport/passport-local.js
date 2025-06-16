@@ -29,7 +29,7 @@ passport.use(
         });
       }
 
-      return await User.findOne({ "user.email": email, businessId: businessId })
+      return await User.findOne({ "user.email": email })
         .then(async (existingUser) => {
           if (existingUser) {
             if (!existingUser.user.password) {

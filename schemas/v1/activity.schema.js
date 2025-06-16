@@ -107,6 +107,13 @@ const activitySchema = new Schema({
     visibleToTags: [String],
   },
   tags: [String],
+  activityCode: { type: String, default: "" },
+  affiliate: {
+    enabled: { type: Boolean, default: false }, // เปิดหรือปิดระบบ affiliate
+    rewardType: { type: String, enum: ["fixed", "percent"], default: "fixed" },
+    rewardValue: { type: Number, default: 100 }, // ถ้า fixed คือจำนวนเงิน / ถ้า percent คือ %
+    maxRewardPerUser: { type: Number, default: 500 }, // (optional) จำกัดค่าตอบแทนต่อ user
+  },
 });
 
 const Activity = mongoose.model("Activity", activitySchema);

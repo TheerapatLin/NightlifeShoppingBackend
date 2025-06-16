@@ -28,6 +28,16 @@ const organizationUserData = require("../schemas/v1/userData/organizationUserDat
 const contactInfoSchema = require("../schemas/v1/contact.schema");
 const addressSchema = require("../schemas/v1/address.schema");
 
+const generateAffiliateCode = (length = 8) => {
+  const chars =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  let code = "";
+  for (let i = 0; i < length; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+};
+
 const register = async (req, res) => {
   if (!req.body) {
     res
@@ -103,6 +113,7 @@ const register = async (req, res) => {
         userData: userDataDocument._id,
         userTypeData: userTypeDataValue,
         businessId: businessId,
+        affiliateCode: generateAffiliateCode(), // 👈 เพิ่มตรงนี้
       })
         .save()
         .then(async (user) => {
@@ -121,7 +132,10 @@ const register = async (req, res) => {
 
           const link = `${process.env.BASE_URL}/api/v1/accounts/verify/email?email=${email}&ref=${refKey}&token=${activationToken}`;
           //const link = `https://hiddengemtech.com/verify/email?email=${email}&ref=${refKey}&token=${activationToken}`;
-          await sendEmail(email, "Verify Email For Healworld", link);
+          const capitalizedName =
+            process.env.DATABASE_NAME.charAt(0).toUpperCase() +
+            process.env.DATABASE_NAME.slice(1);
+          await sendEmail(email, `Verify Email For ${capitalizedName}`, link);
 
           res.status(201).send({
             status: "success",
@@ -196,12 +210,14 @@ const login = async (req, res, next) => {
 
         const foundUserEmail = foundUser.user.email;
         const foundUserId = foundUser.id;
+        const foundUserAffiliateCode = foundUser.affiliateCode || "";
         const accessToken = jwt.sign(
           {
             userId: foundUserId,
             name: foundUser.user.name,
             email: foundUserEmail,
             businessId: businessId,
+            affiliateCode: foundUserAffiliateCode,
             role: foundUser.role ?? "user",
           },
           process.env.JWT_ACCESS_TOKEN_SECRET,
@@ -394,7 +410,8 @@ const googleWebLogin = async (req, res) => {
         email: user.user.email,
         businessId,
         role: user.role ?? "user",
-        userData: user.userData?.toString()
+        affiliateCode: user.affiliateCode,
+        userData: user.userData?.toString(),
       },
       process.env.JWT_ACCESS_TOKEN_SECRET,
       { expiresIn: process.env.ACCESS_TOKEN_EXPIRES }
@@ -418,7 +435,7 @@ const googleWebLogin = async (req, res) => {
     const refreshTokenOTP = Math.floor(
       100000 + Math.random() * 900000
     ).toString();
-    
+
     await redis.set(
       `Last_Refresh_Token_OTP_${userId}_${deviceFingerprint}`,
       refreshTokenOTP
@@ -489,12 +506,10 @@ const googleWebLogin = async (req, res) => {
       "Google login error:",
       error?.response?.data || error.message
     );
-    return res
-      .status(401)
-      .json({
-        status: "error",
-        message: "Invalid Google token or user creation failed",
-      });
+    return res.status(401).json({
+      status: "error",
+      message: "Invalid Google token or user creation failed",
+    });
   }
 };
 
@@ -567,6 +582,7 @@ const refresh = async (req, res, next) => {
       email: req.user.email,
       businessId: req.user.businessId,
       role: req.role ?? "user",
+      affiliateCode: req.user.affiliateCode,
       userData: req.user.userData?.toString(), // ✅ เพิ่มตรงนี้เช่นกัน
     },
     process.env.JWT_ACCESS_TOKEN_SECRET,
@@ -609,6 +625,7 @@ const refreshWeb = async (req, res, next) => {
       email: req.user.email,
       businessId: req.user.businessId,
       role: req.user.role,
+      affiliateCode: req.user.affiliateCode,
       userData: req.user.userData?.toString(), // ✅ เพิ่มตรงนี้เช่นกัน
     },
     process.env.JWT_ACCESS_TOKEN_SECRET,
@@ -633,11 +650,13 @@ const refreshWeb = async (req, res, next) => {
     message: "New Cookie accessToken has been generated",
     data: {
       user: {
+        test: "333",
         userId: req.user.userId,
         role: req.user.role ?? "user",
         name: req.user.name,
         email: req.user.email,
         businessId: req.user.businessId,
+        affiliateCode: req.user.affiliateCode,
       },
       tokens: {
         accessToken: accessToken,

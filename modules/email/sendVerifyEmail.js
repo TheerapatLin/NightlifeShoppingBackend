@@ -20,7 +20,7 @@ const sendEmail = async (email, subject, text) => {
         //console.log('Server is ready to take our messages');
       }
     });
-
+    const capitalizedName = process.env.DATABASE_NAME.charAt(0).toUpperCase() + process.env.DATABASE_NAME.slice(1);
     let html = `<!doctype html>
         <html>
           <head>
@@ -138,7 +138,7 @@ const sendEmail = async (email, subject, text) => {
                             <tr>
                               <td style="font-family: sans-serif; font-size: 14px; vertical-align: top;" valign="top">
                                 <p style="font-family: sans-serif; font-size: 14px; font-weight: normal; margin: 0; margin-bottom: 15px;">Hi ${email},</p>
-                                <p style="font-family: sans-serif; font-size: 14px; font-weight: normal; margin: 0; margin-bottom: 15px;">Welcome to <span style="font-weight: bold">Healworld.me</span></p>
+                                <p style="font-family: sans-serif; font-size: 14px; font-weight: normal; margin: 0; margin-bottom: 15px;">Welcome to <b>${capitalizedName}</b>,</p>
                                 <p style="font-family: sans-serif; font-size: 14px; font-weight: normal; margin: 0; margin-bottom: 15px;"> Confirm that <span style="font-weight: bold">${email} </span> is your e-mail address by click the button below within <span style="font-weight: bold">10 minutes.</span></p>
                                 <table role="presentation" border="0" cellpadding="0" cellspacing="0" class="btn btn-primary" style="border-collapse: separate; mso-table-lspace: 0pt; mso-table-rspace: 0pt; box-sizing: border-box; width: 100%;" width="100%">
                                   <tbody>
@@ -155,8 +155,7 @@ const sendEmail = async (email, subject, text) => {
                                     </tr>
                                   </tbody>
                                 </table>
-                                <p style="font-family: sans-serif; font-size: 14px; font-weight: normal; margin: 0; margin-bottom: 15px;">If you did not sign up to Healworld.me, Please ignore this e-mail.</p>
-                                <p style="font-family: sans-serif; font-size: 14px; font-weight: bold; margin: 0; margin-bottom: 15px;">Healworld.me Team</p>
+                                <p style="font-family: sans-serif; font-size: 14px; font-weight: bold; margin: 0; margin-bottom: 15px;">HiddengemTech Team</p>
                               </td>
                             </tr>
                           </table>
@@ -176,7 +175,7 @@ const sendEmail = async (email, subject, text) => {
         </html>`;
 
     const mailOptions = {
-      from: `Healworld Support <${process.env.MAIL_USERNAME}>`,
+      from: `${capitalizedName} Support <${process.env.MAIL_USERNAME}>`,
       to: email,
       subject: subject,
       text: text,

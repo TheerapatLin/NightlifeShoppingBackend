@@ -12,10 +12,24 @@ const crypto = require("crypto");
 const redis = require("../app");
 const { sendSetPasswordEmail } = require("../modules/email/email");
 
+// generate affiliateCode แบบ 8 ตัว อังกฤษ+ตัวเลข
+const generateAffiliateCode = async (length = 8) => {
+  const chars =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  let code;
+  do {
+    code = Array.from(
+      { length },
+      () => chars[Math.floor(Math.random() * chars.length)]
+    ).join("");
+  } while (await User.findOne({ affiliateCode: code }));
+  return code;
+};
+
 //4242424242424242 (test code)
 exports.createActivityPaymentIntent = async (req, res) => {
   const stripe = getStripeInstance();
-  const { items } = req.body;
+  const { items, affiliateCode } = req.body;
 
   if (!Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ error: "Missing items in request body" });
@@ -67,6 +81,15 @@ exports.createActivityPaymentIntent = async (req, res) => {
     const discountAmount = 0;
     const paidAmount = originalPrice - discountAmount;
 
+    // ✅ หาจาก affiliateCode
+    let affiliateUserId = null;
+    if (affiliateCode) {
+      const affiliateUser = await User.findOne({ affiliateCode });
+      if (affiliateUser) {
+        affiliateUserId = affiliateUser._id.toString();
+      }
+    }
+
     // log ไว้เช็ก
     console.log("🔢 originalPrice =", originalPrice);
     console.log("🔢 discountAmount =", discountAmount);
@@ -97,6 +120,7 @@ exports.createActivityPaymentIntent = async (req, res) => {
         adults: amountAdults,
         children: amountChildren,
         discountCodeId: discountCodeId || "",
+        affiliateCode: affiliateCode || "",
         affiliateUserId: affiliateUserId || "",
         paymentMode: process.env.STRIPE_MODE === "live" ? "live" : "test",
       },
@@ -202,6 +226,7 @@ exports.webhookHandler = async (req, res) => {
             userType: "regular",
             userData: regularUserData._id,
             userTypeData: "RegularUserData",
+            affiliateCode: await generateAffiliateCode(), // ✅ เพิ่มตรงนี้
           });
 
           await user.save();

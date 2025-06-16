@@ -977,3 +977,13 @@ exports.banJoin = async (req, res) => {
     res.status(500).json({ message: "Server error", error });
   }
 };
+
+exports.getAffiliateEnabledActivities = async (req, res) => {
+  try {
+    const activities = await Activity.find({ "affiliate.enabled": true });
+    res.status(200).json({ status: "success", data: activities });
+  } catch (error) {
+    console.error("Error fetching affiliate-enabled activities:", error);
+    res.status(500).json({ status: "error", message: "Server error" });
+  }
+};
