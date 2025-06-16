@@ -4,6 +4,7 @@ const {
   calculateOrderAmount,
 } = require("../utils/stripeUtils");
 
+const mongoose = require("mongoose");
 const Order = require("../schemas/v1/activityOrder.schema");
 const User = require("../schemas/v1/user.schema");
 const RegularUserData = require("../schemas/v1/userData/regularUserData.schema");
