@@ -15,6 +15,7 @@ const sendVerifyEmail = require("../modules/email/sendVerifyEmail");
 const sendResetPasswordEmail = require("../modules/email/sendResetPasswordEmail");
 
 const user = require("../schemas/v1/user.schema");
+const User = require("../schemas/v1/user.schema");
 
 const getOneAccount = async (req, res) => {
   try {
@@ -97,9 +98,11 @@ const uploadProfileImage = async (req, res) => {
   //console.log("start uploadProfileImage");
   try {
     const user = req.user;
-    //console.log("user", user);
-    const userData = await RegularUserData.findById(user.userData);
-
+    console.log("user", user);
+    const foundUser = await User.findById(user.userId);
+    console.log("foundUser.userData", foundUser?.userData);
+    const userData = await RegularUserData.findById(foundUser.userData);
+    console.log("userData", userData);
     if (!userData)
       return res.status(404).json({ error: "User data not found" });
 
@@ -117,13 +120,13 @@ const uploadProfileImage = async (req, res) => {
 
     //const imageUrl = `https://${OSSStorage.options.bucket}.${OSSStorage.options.endpoint}/${objectName}`;
     const imageUrl = objectName;
-
+    console.log(imageUrl);
     userData.profileImage = imageUrl;
     await userData.save();
 
     res.json({ success: true, profileImage: imageUrl });
   } catch (err) {
-    //console.error("Upload failed:", err);
+    console.error("Upload failed:", err);
     console.log("Upload failed:", err);
     res.status(500).json({ error: "Upload failed" });
   }

@@ -1,5 +1,6 @@
 node_modules
 .env
 .env-nl
+.env-nl-copy
 .env-hw
 .env*

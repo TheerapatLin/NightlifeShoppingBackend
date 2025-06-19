@@ -59,6 +59,7 @@ const UserSchema = new mongoose.Schema(
       enum: ["RegularUserData", "OrganizationUserData"],
     },
     affiliateCode: { type: String, unique: true, required: true },
+    affiliateAvaiability: { type: Boolean, default: false },
     businessId: { type: String },
     loggedInDevices: [
       {
