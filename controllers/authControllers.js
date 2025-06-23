@@ -20,6 +20,7 @@ const client = new OAuth2Client(CLIENT_ID);
 const redis = require("../app");
 
 const sendEmail = require("../modules/email/sendVerifyEmail");
+const sendEmailForgot = require("../modules/email/sendEmailForgot");
 
 const User = require("../schemas/v1/user.schema");
 const user = require("../schemas/v1/user.schema");
@@ -167,6 +168,129 @@ const register = async (req, res) => {
   }
 };
 
+// Dev:Oreq
+const forgotPassword = async (req, res) => {
+  const email = req.body.email?.toLowerCase().trim();
+
+  if (!email) {
+    return res.status(400).send({
+      status: "error",
+      message: "Email is required",
+    });
+  }
+
+  try {
+    const userData = await user.findOne({ "user.email": email });
+
+    if (!userData) {
+      return res.status(404).send({
+        status: "error",
+        message: "Email not found in the system",
+      });
+    }
+
+    const resetToken = crypto.randomBytes(32).toString("hex");
+    const resetRef = crypto.randomBytes(2).toString("hex").toUpperCase();
+
+    await redis.hSet(email, {
+      resetToken: resetToken,
+      resetRef: resetRef,
+    }, { EX: 600 }); // TTL 10 นาที
+    await redis.expire(email, 600); // backup ซ้ำอีกชั้น
+
+    const resetLink = `${process.env.BASE_URL}/reset-password?email=${email}&ref=${resetRef}&token=${resetToken}`;
+
+    const capitalizedAppName =
+      process.env.DATABASE_NAME.charAt(0).toUpperCase() +
+      process.env.DATABASE_NAME.slice(1);
+
+    await sendEmailForgot(
+      email,
+      `Reset Password for ${capitalizedAppName}`,
+      resetLink
+    );
+
+    return res.status(200).send({
+      status: "success",
+      message: "Password reset link has been sent to your email.",
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).send({
+      status: "error",
+      message: "Something went wrong. Please try again.",
+    });
+  }
+};
+
+const resetPassword = async (req, res) => {
+  const { email, token, ref, password } = req.body;
+  console.log("📩 Incoming reset password request:", { email, token, ref });
+
+  if (!email || !token || !ref || !password) {
+    console.log("❌ Missing required fields");
+    return res.status(400).send({
+      status: "error",
+      message: "Missing required fields.",
+    });
+  }
+
+  try {
+    const storedData = await redis.hGetAll(email);
+    console.log("🧠 Redis stored data for email:", email, storedData);
+
+    if (!storedData || !storedData.resetToken || !storedData.resetRef) {
+      console.log("⛔ Reset token not found or expired");
+      return res.status(400).send({
+        status: "error",
+        message: "Reset token expired or invalid.",
+      });
+    }
+
+    if (storedData.resetToken !== token || storedData.resetRef !== ref) {
+      console.log("⚠️ Token or ref mismatch", {
+        received: { token, ref },
+        stored: storedData,
+      });
+      return res.status(400).send({
+        status: "error",
+        message: "Invalid reset token or reference.",
+      });
+    }
+
+    const userDoc = await user.findOne({ "user.email": email });
+    console.log("🔍 Found user:", userDoc?.user?.email);
+
+    if (!userDoc) {
+      console.log("❌ User not found in DB");
+      return res.status(404).send({
+        status: "error",
+        message: "User not found.",
+      });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    userDoc.user.password = hashedPassword;
+    await userDoc.save();
+    console.log("✅ Password updated successfully for:", email);
+
+    await redis.del(email);
+    console.log("🧹 Redis token deleted for email:", email);
+
+    return res.status(200).send({
+      status: "success",
+      message: "Password has been reset successfully.",
+    });
+  } catch (error) {
+    console.error("💥 Internal error in resetPassword:", error);
+    return res.status(500).send({
+      status: "error",
+      message: "Internal server error.",
+    });
+  }
+};
+
+//-----
 const login = async (req, res, next) => {
   // ตรวจสอบว่า device fingerprint ถูกส่งมาหรือไม่
   if (!req.headers["device-fingerprint"]) {
@@ -924,6 +1048,8 @@ const lineCallback = async (req, res) => {
 
 module.exports = {
   register,
+  forgotPassword,
+  resetPassword,
   login,
   logout,
   refresh,

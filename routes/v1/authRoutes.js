@@ -10,6 +10,8 @@ const {
 
 const {
   register,
+  forgotPassword,
+  resetPassword,
   login,
   logout,
   refresh,
@@ -18,7 +20,8 @@ const {
   googleCallback,
   lineCallback,
   googleFlutterLogin,
-  googleWebLogin
+  googleWebLogin,
+
 } = require("../../controllers/authControllers");
 
 const {
@@ -29,6 +32,12 @@ const {
 
 //? Register
 router.post("/register", registerRateLimiter, register);
+
+
+//? Dev:Oreq Forgot Password
+router.post("/forgot-password", forgotPassword);
+router.post('/reset-password', resetPassword);
+
 
 //? Login
 router.post("/login", loginRateLimiter, login);
