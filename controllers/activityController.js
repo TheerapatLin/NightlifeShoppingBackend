@@ -370,15 +370,15 @@ exports.getAcivityById = async (req, res) => {
     }
 
     // อัปเดตรูปโปรไฟล์ของผู้เข้าร่วมกิจกรรม
-    activity.participants = activity.participants.map((participant) => ({
-      ...participant.toObject(),
-      userId: {
-        ...participant.userId.toObject(),
-        profileImage: participant.userId.userData
-          ? participant.userId.userData.profileImage || "" // รูปภาพโปรไฟล์ของผู้เข้าร่วมกิจกรรม
-          : "",
-      },
-    }));
+    // activity.participants = activity.participants.map((participant) => ({
+    //   ...participant.toObject(),
+    //   userId: {
+    //     ...participant.userId.toObject(),
+    //     profileImage: participant.userId.userData
+    //       ? participant.userId.userData.profileImage || "" // รูปภาพโปรไฟล์ของผู้เข้าร่วมกิจกรรม
+    //       : "",
+    //   },
+    // }));
 
     // ดึงข้อมูลกิจกรรมที่เกี่ยวข้องซึ่งมี parentId เดียวกัน
     let relatedActivities = [];

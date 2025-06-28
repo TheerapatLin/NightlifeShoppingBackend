@@ -395,6 +395,7 @@ const googleWebLogin = async (req, res) => {
         userType: "regular",
         userTypeData: "RegularUserData",
         userData: userDataDoc._id,
+        affiliateCode: generateAffiliateCode(),
         provider: "google",
         businessId,
         loggedInDevices: [],

@@ -257,6 +257,7 @@ exports.webhookHandler = async (req, res) => {
             children,
             discountCodeId,
             affiliateUserId,
+            affiliateCode: metadata.affiliateCode || "",
             paymentGateway: "stripe",
             paymentMode,
             paidAt: new Date(),

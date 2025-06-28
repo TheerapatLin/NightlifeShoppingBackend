@@ -79,6 +79,9 @@ const activityOrderSchema = new mongoose.Schema(
       default: null,
     },
 
+    // affiliate code
+    affiliateCode: { type: String, default: "" },
+
     // ช่องทางการชำระเงิน เช่น stripe
     paymentGateway: {
       type: String,
