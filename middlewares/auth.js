@@ -221,7 +221,8 @@ const verifyAccessTokenWebPass = async (req, res, next) => {
       async (err, decoded) => {
         req.user = decoded;
         if (err) {
-          return accessTokenCatchError(err, res);
+          req.user = null;
+          //return accessTokenCatchError(err, res);
         } else {
           const lastAccessToken = await redis.get(
             `Last_Access_Token_${decoded.userId}_${req.headers["device-fingerprint"]}`
