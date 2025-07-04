@@ -195,6 +195,10 @@ app.use("/api/v1/user-deal", v1UserDealRouter);
 //? affiliateTracking
 app.use("/api/v1/affiliate", require("./routes/v1/affiliateTrackingRoutes"));
 
+//? discountCodeRoutes
+const discountCodeRoutes = require("./routes/v1/discountCodeRoutes");
+app.use("/api/v1/discount-code", discountCodeRoutes);
+
 //? Webhook
 const v1WebhookRouter = require("./routes/v1/webhookRoutes");
 app.use("/api/v1", v1WebhookRouter);
