@@ -3,7 +3,11 @@ const Schema = mongoose.Schema;
 
 const activitySlotSchema = new Schema({
   businessId: { type: String, required: true }, // สำหรับ multi-tenant
-  activityId: { type: mongoose.Schema.Types.ObjectId, ref: "Activity", required: true }, // เชื่อมกับ activity หลัก
+  activityId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Activity",
+    required: true,
+  }, // เชื่อมกับ activity หลัก
   parentSlotId: { type: String, default: null }, // ถ้าต้องการทำ recurring slot
   creator: {
     id: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
@@ -52,6 +56,8 @@ const activitySlotSchema = new Schema({
         enum: ["no show", "showed up", "good", "excellent"],
         default: "showed up",
       },
+      adults: { type: Number, default: 1 }, // ✅ เพิ่ม
+      children: { type: Number, default: 0 }, // ✅ เพิ่ม
     },
   ],
 

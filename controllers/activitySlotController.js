@@ -87,11 +87,23 @@ exports.updateActivitySlot = async (req, res) => {
 // ✅ Delete Activity Slot
 exports.deleteActivitySlot = async (req, res) => {
   try {
-    const deletedSlot = await ActivitySlot.findByIdAndDelete(req.params.id);
+    const slot = await ActivitySlot.findById(req.params.id);
 
-    if (!deletedSlot) {
+    if (!slot) {
       return res.status(404).json({ error: "Activity slot not found" });
     }
+
+    // ✅ ตรวจสอบว่ามี participant อยู่หรือไม่
+    const hasParticipants = slot.participants && slot.participants.length > 0;
+
+    if (hasParticipants) {
+      return res.status(400).json({
+        error: "Cannot delete slot because there are participants already joined",
+        message: "ไม่สามารถลบรอบนี้ได้เนื่องจากมีผู้เข้าร่วมแล้ว",
+      });
+    }
+
+    await slot.deleteOne();
 
     res.status(200).json({ message: "Activity slot deleted successfully" });
   } catch (err) {

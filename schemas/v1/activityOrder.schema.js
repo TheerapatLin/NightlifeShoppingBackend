@@ -10,11 +10,13 @@ const activityOrderSchema = new mongoose.Schema(
       required: true,
     },
 
-    scheduleId: {
+    // ✅ เพิ่มเพื่อเก็บ ActivitySlot ที่ใช้จริงในรอบนี้
+    activitySlotId: {
       type: mongoose.Schema.Types.ObjectId,
-      required: true,
+      ref: "ActivitySlot",
+      default: null,
     },
-
+    
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
