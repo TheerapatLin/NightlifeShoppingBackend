@@ -1,3 +1,4 @@
+// routes/v1/accountRoutes.js
 const express = require("express");
 const router = express.Router();
 const path = require("path");
@@ -34,7 +35,10 @@ const {
   updateBusinessesByUserId,
   setPassword,
   setPasswordPage,
-  uploadProfileImage
+  uploadProfileImage,
+  updateAffiliateSetting,
+  getAffiliateSettings,
+  getAffiliateSummary,
 } = require("../../controllers/accountsControllers");
 
 const {
@@ -42,6 +46,10 @@ const {
   verifyRefreshToken,
   verifyAccessTokenWeb,
 } = require("../../middlewares/auth");
+
+router.put("/affiliate-setting", verifyAccessTokenWeb, updateAffiliateSetting);
+router.get("/affiliate-settings", verifyAccessTokenWeb, getAffiliateSettings);
+router.get("/affiliate-summary", verifyAccessTokenWeb, getAffiliateSummary);
 
 //? Set Password
 router.get("/set-password", setPasswordPage);

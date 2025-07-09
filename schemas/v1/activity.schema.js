@@ -110,6 +110,7 @@ const activitySchema = new Schema({
   activityCode: { type: String, default: "" },
   affiliate: {
     enabled: { type: Boolean, default: false }, // เปิดหรือปิดระบบ affiliate
+    totalValue: { type: Number, default: 200 }, // เลขเป็นเลขที่ให้ affiliator ไปจัดสรรเอาเองได้ว่าถ้ามีคนลงผ่านลิงก์ตัวเองจะได้ส่วนแบ่งเท่าไหร่ และลดให้ลูกค้าเท่าไหร่ แต่รวมทั้งต้องได้เป็น totalvalue เช่น ถ้าเลือกให้ตัวเองได้ 150 ก็แปลว่าลูกค้าได้ลด 50 บาท ถ้า totalValue เป็น 200 บาท
     rewardType: { type: String, enum: ["fixed", "percent"], default: "fixed" },
     rewardValue: { type: Number, default: 100 }, // ถ้า fixed คือจำนวนเงิน / ถ้า percent คือ %
     maxRewardPerUser: { type: Number, default: 500 }, // (optional) จำกัดค่าตอบแทนต่อ user

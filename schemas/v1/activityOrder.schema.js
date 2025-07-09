@@ -16,7 +16,7 @@ const activityOrderSchema = new mongoose.Schema(
       ref: "ActivitySlot",
       default: null,
     },
-    
+
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -83,6 +83,16 @@ const activityOrderSchema = new mongoose.Schema(
 
     // affiliate code
     affiliateCode: { type: String, default: "" },
+
+    affiliateRewardAmount: {
+      type: Number,
+      default: 0,
+    },
+
+    affiliateDiscountAmount: {
+      type: Number,
+      default: 0,
+    },
 
     // ช่องทางการชำระเงิน เช่น stripe
     paymentGateway: {

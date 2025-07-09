@@ -60,6 +60,23 @@ const UserSchema = new mongoose.Schema(
     },
     affiliateCode: { type: String, unique: true, required: true },
     affiliateAvaiability: { type: Boolean, default: false },
+    affiliateSettings: [
+      {
+        activityId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "Activity",
+          required: true,
+        },
+        customerDiscount: { type: Number, default: 0 },
+        affiliatorReward: { type: Number, default: 0 },
+        rewardType: {
+          type: String,
+          enum: ["fixed", "percent"],
+          default: "fixed",
+        },
+        enabled: { type: Boolean, default: true },
+      },
+    ],
     businessId: { type: String },
     loggedInDevices: [
       {

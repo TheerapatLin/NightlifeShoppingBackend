@@ -1,3 +1,5 @@
+// controllers/accountControllers.js
+
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
@@ -16,6 +18,8 @@ const sendResetPasswordEmail = require("../modules/email/sendResetPasswordEmail"
 
 const user = require("../schemas/v1/user.schema");
 const User = require("../schemas/v1/user.schema");
+const ActivityOrder = require("../schemas/v1/activityOrder.schema");
+const Activity = require("../schemas/v1/activity.schema");
 
 const getOneAccount = async (req, res) => {
   try {
@@ -1203,6 +1207,145 @@ const checkAccount = async (req, res) => {
   }
 };
 
+const updateAffiliateSetting = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const {
+      activityId,
+      customerDiscount,
+      affiliatorReward,
+      rewardType,
+      enabled,
+    } = req.body;
+
+    if (!activityId || customerDiscount == null || affiliatorReward == null) {
+      return res.status(400).json({ message: "Missing required fields." });
+    }
+
+    if (customerDiscount < 0 || affiliatorReward < 0) {
+      return res
+        .status(400)
+        .json({ message: "Discount or reward cannot be negative." });
+    }
+
+    const activity = await Activity.findById(activityId);
+    if (!activity) {
+      return res.status(404).json({ message: "Activity not found." });
+    }
+
+    if (!activity.affiliate?.enabled) {
+      return res
+        .status(400)
+        .json({ message: "Affiliate is not enabled for this activity." });
+    }
+
+    const totalValue = activity.affiliate.totalValue || 0;
+    if (customerDiscount + affiliatorReward !== totalValue) {
+      return res.status(400).json({
+        message: `The sum of customerDiscount (${customerDiscount}) and affiliatorReward (${affiliatorReward}) must equal ${totalValue}.`,
+      });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: "User not found." });
+
+    // Update if exists, else push
+    const index = user.affiliateSettings.findIndex(
+      (s) => s.activityId.toString() === activityId.toString()
+    );
+
+    if (index > -1) {
+      user.affiliateSettings[index].customerDiscount = customerDiscount;
+      user.affiliateSettings[index].affiliatorReward = affiliatorReward;
+      user.affiliateSettings[index].rewardType = rewardType || "fixed";
+      user.affiliateSettings[index].enabled = enabled ?? true;
+    } else {
+      user.affiliateSettings.push({
+        activityId,
+        customerDiscount,
+        affiliatorReward,
+        rewardType: rewardType || "fixed",
+        enabled: enabled ?? true,
+      });
+    }
+
+    await user.save();
+
+    res.status(200).json({
+      message: "Affiliate setting updated successfully.",
+      affiliateSettings: user.affiliateSettings,
+    });
+  } catch (err) {
+    console.error("Error updating affiliate setting:", err);
+    res.status(500).json({ message: err.message || "Server error" });
+  }
+};
+
+const getAffiliateSettings = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    const foundUser = await User.findById(userId, "affiliateSettings");
+
+    if (!foundUser) {
+      return res.status(404).json({
+        status: "error",
+        message: "User not found",
+      });
+    }
+
+    return res.status(200).json({
+      status: "success",
+      data: foundUser.affiliateSettings || [],
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({
+      status: "error",
+      message: err.message || "Failed to get affiliate settings",
+    });
+  }
+};
+
+const getAffiliateSummary = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const orders = await ActivityOrder.find({
+      affiliateUserId: userId,
+      status: "paid",
+    })
+      .populate("userId", "user.email")
+      .populate("activityId", "nameTh nameEn")
+      .sort({ createdAt: -1 });
+
+    const totalOrders = orders.length;
+    const totalReward = orders.reduce(
+      (sum, order) => sum + (order.affiliateRewardAmount || 0),
+      0
+    );
+
+    res.status(200).json({
+      totalOrders,
+      totalReward,
+      totalWithdrawn: 0, // ยังไม่มีระบบถอน
+      orders: orders.map((order) => ({
+        id: order._id,
+        date: order.createdAt,
+        activityName:
+          order.activityId?.nameTh || order.activityId?.nameEn || "กิจกรรม",
+        userEmail: order.userId?.user?.email || "-",
+        originalPrice: order.originalPrice,
+        affiliateDiscountAmount: order.affiliateDiscountAmount,
+        affiliateRewardAmount: order.affiliateRewardAmount,
+        status: order.status,
+      })),
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch affiliate summary" });
+  }
+};
+
 module.exports = {
   changePassword,
   resetPassword,
@@ -1225,4 +1368,7 @@ module.exports = {
   checkAccount,
   updateUserProfile,
   uploadProfileImage,
+  updateAffiliateSetting,
+  getAffiliateSettings,
+  getAffiliateSummary,
 };

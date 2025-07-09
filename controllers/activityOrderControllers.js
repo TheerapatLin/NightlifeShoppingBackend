@@ -46,16 +46,12 @@ exports.webhookHandler = async (req, res) => {
         const metadata = paymentIntent.metadata || {};
 
         const activityId = metadata.activityId;
-        const activitySlotId = metadata.scheduleId; // ✅ ใช้เป็น activitySlotId
+        const activitySlotId = metadata.scheduleId;
         const startDate = metadata.startDate;
-
         const originalPrice = parseFloat(metadata.originalPrice || "0");
         const discountAmount = parseFloat(metadata.discountAmount || "0");
         let paidAmount = paymentIntent.amount_received / 100;
-
-        if (paidAmount < 15) {
-          paidAmount = 15;
-        }
+        if (paidAmount < 15) paidAmount = 15;
 
         const adults = parseInt(metadata.adults || "1");
         const children = parseInt(metadata.children || "0");
@@ -70,13 +66,11 @@ exports.webhookHandler = async (req, res) => {
         if (!activity) {
           console.error(`❌ Activity with ID ${activityId} not found.`);
           return res.status(400).send({ error: "Invalid activityId" });
-        }
+        } 
 
         const slot = await ActivitySlot.findById(activitySlotId);
         if (!slot) {
-          console.error(
-            `❌ ActivitySlot with ID ${activitySlotId} not found for Activity ${activityId}`
-          );
+          console.error(`❌ ActivitySlot with ID ${activitySlotId} not found.`);
           return res.status(400).send({ error: "Invalid activitySlotId" });
         }
 
@@ -90,12 +84,6 @@ exports.webhookHandler = async (req, res) => {
         }
 
         console.log(`✅ ActivitySlot found: ${slot._id}`);
-        console.log("Slot details:", {
-          _id: slot._id,
-          startTime: slot.startTime,
-          endTime: slot.endTime,
-          participantsCount: slot.participants.length,
-        });
 
         const charge = await stripe.charges.retrieve(
           paymentIntent.latest_charge
@@ -111,7 +99,7 @@ exports.webhookHandler = async (req, res) => {
             role: "user",
             user: {
               name: name || "Unknown User",
-              email: email,
+              email,
               activated: false,
               verified: { email: false, phone: false },
             },
@@ -123,14 +111,37 @@ exports.webhookHandler = async (req, res) => {
           });
 
           await user.save();
-
           const resetToken = crypto.randomBytes(32).toString("hex");
           redis.set(`${email}-setPasswordToken`, resetToken, "EX", 3600);
-
           const setPasswordLink = `${process.env.BASE_URL}/api/v1/accounts/set-password?token=${resetToken}&email=${email}`;
           await sendSetPasswordEmail(email, setPasswordLink);
-
           console.log(`✅ User created and set-password email sent: ${email}`);
+        }
+
+        // ✅ Calculate affiliateRewardAmount & affiliateDiscountAmount
+        let affiliateRewardAmount = 0;
+        let affiliateDiscountAmount = 0;
+
+        if (affiliateUserId) {
+          const affiliateUser = await User.findById(affiliateUserId);
+          if (affiliateUser && affiliateUser.affiliateSettings) {
+            const setting = affiliateUser.affiliateSettings.find(
+              (s) =>
+                s.activityId.toString() === activityId.toString() && s.enabled
+            );
+            if (setting) {
+              affiliateRewardAmount = setting.affiliatorReward || 0;
+              affiliateDiscountAmount = setting.customerDiscount || 0;
+            } else if (activity.affiliate && activity.affiliate.enabled) {
+              affiliateRewardAmount = activity.affiliate.rewardValue || 0;
+              affiliateDiscountAmount =
+                (activity.affiliate.totalValue || 0) - affiliateRewardAmount;
+            }
+          } else if (activity.affiliate && activity.affiliate.enabled) {
+            affiliateRewardAmount = activity.affiliate.rewardValue || 0;
+            affiliateDiscountAmount =
+              (activity.affiliate.totalValue || 0) - affiliateRewardAmount;
+          }
         }
 
         const order = await Order.findOneAndUpdate(
@@ -150,6 +161,8 @@ exports.webhookHandler = async (req, res) => {
             discountCodeId,
             affiliateUserId,
             affiliateCode: metadata.affiliateCode || "",
+            affiliateRewardAmount,
+            affiliateDiscountAmount,
             paymentGateway: "stripe",
             paymentMode,
             paidAt: new Date(),
@@ -166,7 +179,6 @@ exports.webhookHandler = async (req, res) => {
 
         console.log(`✅ Order saved successfully: ${order._id}`);
 
-        // ✅ เพิ่ม participant โดยให้ userId เดิมจองซ้ำได้ และเก็บจำนวน
         slot.participants.push({
           userId: user._id,
           name: user.user.name,
@@ -174,13 +186,13 @@ exports.webhookHandler = async (req, res) => {
           paymentStatus: "paid",
           attendanceStatus: "joined",
           joinRequestTime: new Date(),
-          adults: adults,
-          children: children,
+          adults,
+          children,
         });
         await slot.save();
 
         console.log(
-          `✅ Added participant for user ${user._id} to ActivitySlot ${slot._id} with ${adults} adults and ${children} children.`
+          `✅ Participant added for user ${user._id} with ${adults} adults and ${children} children.`
         );
 
         break;
