@@ -5,8 +5,6 @@ const { ChatRoom, Message } = require("../schemas/v1/chat.schema");
 const mongoose = require("mongoose");
 
 const { queueGetAcivityById ,queueGetAcivityByIdEvent} = require('../queues/producer')
-const { } = require('../queues/worker')
-
 
 // ------------------------ สร้างกิจกรรม --------------------------
 exports.createActivity = async (req, res, io) => {
@@ -414,7 +412,7 @@ exports.getAcivityById = async (req, res) => {
   try {
     const activityId = req.params.activityId;
 
-    const job = await queueGetAcivityById.add('getAcivityById-task', {activityId}, // ส่ง Job ไปยัง 
+    const job = await queueGetAcivityById.add('getAcivityById-job', {activityId}, // ส่ง Job ไปยัง 
       {
         attempts: 3,            // จำนวนครั้งที่ retry ถ้า failed
         backoff: {

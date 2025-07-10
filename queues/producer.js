@@ -2,16 +2,18 @@ const { Queue, QueueEvents } = require('bullmq')
 const IORedis = require('ioredis')
 require('dotenv').config({ path: `.env.${process.env.NODE_ENV}` });
 const { REDISDATABASEURI } = process.env;
+const { } = require('../queues/worker')
 
 const connection = new IORedis(`${REDISDATABASEURI}`, {
   maxRetriesPerRequest: null
 })
 
-const queueGetAcivityById = new Queue('getAcivityByIdJob', { connection })
+// ------------------------------- getActivityById ------------------------------- //
+const queueGetAcivityById = new Queue('getAcivityById-queue', { connection })
 
 // ------------------------------- STATUS EVENT ------------------------------- //
 
-const queueGetAcivityByIdEvent = new QueueEvents('getAcivityByIdJob', { connection })
+const queueGetAcivityByIdEvent = new QueueEvents('getAcivityById-queue', { connection })
 
 queueGetAcivityByIdEvent.on('completed', (job) => {
   console.log(`Producer => Job ${job.jobId} completed!!`)

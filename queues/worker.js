@@ -9,7 +9,7 @@ const connection = new IORedis(`${REDISDATABASEURI}`, {
     maxRetriesPerRequest: null
 })
 
-const worker = new Worker('getAcivityByIdJob', async job => {  // สร้าง worker ของ getAcivityById
+const worker = new Worker('getAcivityById-queue', async job => {  // สร้าง worker ของ getAcivityById
     const {
         getActivityByIdService
     } = require("../controllers/activityController");
