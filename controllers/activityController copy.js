@@ -4,10 +4,6 @@ const { OSSStorage, deleteFolder } = require("../modules/storage/oss");
 const { ChatRoom, Message } = require("../schemas/v1/chat.schema");
 const mongoose = require("mongoose");
 
-const { queueGetAcivityById ,queueGetAcivityByIdEvent} = require('../queues/producer')
-const { } = require('../queues/worker')
-
-
 // ------------------------ สร้างกิจกรรม --------------------------
 exports.createActivity = async (req, res, io) => {
   try {
@@ -328,49 +324,49 @@ exports.getAllActivity = async (req, res) => {
   }
 };
 
-// --------------------------------------------- getActivityById --------------------------------------------- //
-
-exports.getActivityByIdService = async (activityId) => { // สร้าง function ใหม่เพื่อนำไปใช้ใน worker (logic ยังเหมือนเดิม)
+exports.getAcivityById = async (req, res) => {
+  try {
+    const activityId = req.params.activityId;
 
     if (!mongoose.Types.ObjectId.isValid(activityId)) {
-        throw new Error("ไม่พบ activityId");
+      return res.status(400).json({ message: "ไม่พบ activityId" });
     }
 
     // ดึงข้อมูลกิจกรรมหลัก พร้อมกับข้อมูลที่เติมเต็ม (populate) ผู้เข้าร่วม
     const activity = await Activity.findById(activityId).populate({
-        path: "participants.userId", // เติมข้อมูลผู้ใช้ใน `participants`
-        select: "user.name userData", // เลือกเฉพาะฟิลด์ชื่อผู้ใช้และข้อมูลผู้ใช้เพิ่มเติม
-        populate: {
-            path: "userData", // ดึงข้อมูลโปรไฟล์เพิ่มเติมจาก `userData`
-            model: "RegularUserData",
-            select: "profileImage", // เลือกเฉพาะฟิลด์รูปภาพโปรไฟล์
-        },
+      path: "participants.userId", // เติมข้อมูลผู้ใช้ใน `participants`
+      select: "user.name userData", // เลือกเฉพาะฟิลด์ชื่อผู้ใช้และข้อมูลผู้ใช้เพิ่มเติม
+      populate: {
+        path: "userData", // ดึงข้อมูลโปรไฟล์เพิ่มเติมจาก `userData`
+        model: "RegularUserData",
+        select: "profileImage", // เลือกเฉพาะฟิลด์รูปภาพโปรไฟล์
+      },
     });
 
     if (!activity) {
-        throw new Error("ไม่พบกิจกรรม");
+      return res.status(404).json({ message: "ไม่พบกิจกรรม" });
     }
 
     // ดึงข้อมูลของผู้สร้างกิจกรรม
     const creator =
-        activity.creator && activity.creator.id
-            ? await User.findById(activity.creator.id)
-                .populate({
-                    path: "userData", // เติมข้อมูลโปรไฟล์ของผู้สร้างกิจกรรม
-                    model: "RegularUserData",
-                    select: "profileImage", // เลือกรูปภาพโปรไฟล์ของผู้สร้าง
-                })
-                .select("user.name userData") // เลือกฟิลด์ชื่อผู้สร้างและข้อมูลเพิ่มเติม
-            : null;
+      activity.creator && activity.creator.id
+        ? await User.findById(activity.creator.id)
+            .populate({
+              path: "userData", // เติมข้อมูลโปรไฟล์ของผู้สร้างกิจกรรม
+              model: "RegularUserData",
+              select: "profileImage", // เลือกรูปภาพโปรไฟล์ของผู้สร้าง
+            })
+            .select("user.name userData") // เลือกฟิลด์ชื่อผู้สร้างและข้อมูลเพิ่มเติม
+        : null;
 
     if (creator) {
-        activity.creator = {
-            id: activity.creator.id,
-            name: creator.user.name, // ชื่อผู้สร้าง
-            profileImage: creator.userData
-                ? creator.userData.profileImage || "" // รูปภาพโปรไฟล์ ถ้าไม่มีให้ใช้ค่าว่าง
-                : "",
-        };
+      activity.creator = {
+        id: activity.creator.id,
+        name: creator.user.name, // ชื่อผู้สร้าง
+        profileImage: creator.userData
+          ? creator.userData.profileImage || "" // รูปภาพโปรไฟล์ ถ้าไม่มีให้ใช้ค่าว่าง
+          : "",
+      };
     }
 
     // อัปเดตรูปโปรไฟล์ของผู้เข้าร่วมกิจกรรม
@@ -403,32 +399,14 @@ exports.getActivityByIdService = async (activityId) => { // สร้าง func
       chatRoomId: related.chatRoomId || null, // เพิ่ม `chatRoomId` ลงในข้อมูลที่ส่งกลับ
     }));
 
-    return {
-        activity,
-        relatedDates: relatedDates.filter(date => date.startDate && date.endDate),
-        currentActivityId: activityId,
+    // รวมข้อมูลทั้งหมดเพื่อส่งกลับ
+    const response = {
+      activity, // ข้อมูลกิจกรรมหลัก
+      relatedDates: relatedDates.filter(
+        (date) => date.startDate && date.endDate // เฉพาะกิจกรรมที่มีวันที่เริ่มและสิ้นสุดที่สมบูรณ์เท่านั้น
+      ),
+      currentActivityId: activityId, // ระบุ `activityId` ของกิจกรรมปัจจุบัน
     };
-};
-
-exports.getAcivityById = async (req, res) => {
-  try {
-    const activityId = req.params.activityId;
-
-    const job = await queueGetAcivityById.add('getAcivityById-task', {activityId}, // ส่ง Job ไปยัง 
-      {
-        attempts: 3,            // จำนวนครั้งที่ retry ถ้า failed
-        backoff: {
-          type: 'exponential',  // 3s => 6s => 12s
-          delay: 3000           // หน่วงเวลา 3 วินาทีก่อน retry
-        },
-        removeOnComplete: true, // ลบทันทีเมื่อ completed
-        removeOnFail: {         // หาก fail ให้ลบ event นี้ภายใน 1 ชม.
-          age: 3600
-        }
-      }
-    )
-
-    const response = await job.waitUntilFinished(queueGetAcivityByIdEvent);
 
     res.status(200).json(response);
   } catch (error) {
