@@ -1,3 +1,4 @@
+// schemas/v1/user.schema.js
 const mongoose = require("mongoose");
 const addressSchema = require("./address.schema");
 const contactInfoSchema = require("./contact.schema");
@@ -75,6 +76,12 @@ const UserSchema = new mongoose.Schema(
           default: "fixed",
         },
         enabled: { type: Boolean, default: true },
+        // ✅ NEW: specify whether affiliate budget applies "per_order" or "per_person"
+        budgetApplyMode: {
+          type: String,
+          enum: ["per_order", "per_person"],
+          default: "per_order",
+        },
       },
     ],
     businessId: { type: String },

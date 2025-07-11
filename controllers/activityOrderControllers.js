@@ -609,12 +609,10 @@ exports.createActivityPaymentIntent = async (req, res) => {
       const discountDoc = await DiscountCode.findOne({
         code: new RegExp(`^${appliedDiscountCode}$`, "i"),
       });
-      if (!discountDoc) {
+      if (!discountDoc)
         return res
           .status(400)
           .json({ error: "Invalid discount code provided." });
-      }
-
       const now = new Date();
       if (
         !discountDoc.isActive ||
@@ -623,18 +621,15 @@ exports.createActivityPaymentIntent = async (req, res) => {
       ) {
         return res.status(400).json({ error: "Discount code is not valid." });
       }
-
       let calculatedDiscount = 0;
-      if (discountDoc.discountType === "amount") {
+      if (discountDoc.discountType === "amount")
         calculatedDiscount = discountDoc.discountValue;
-      } else if (discountDoc.discountType === "percent") {
+      else if (discountDoc.discountType === "percent")
         calculatedDiscount = (originalPrice * discountDoc.discountValue) / 100;
-      } else if (discountDoc.discountType === "fixed_price") {
+      else if (discountDoc.discountType === "fixed_price")
         calculatedDiscount = originalPrice - discountDoc.discountValue;
-      } else if (discountDoc.discountType === "free") {
+      else if (discountDoc.discountType === "free")
         calculatedDiscount = originalPrice;
-      }
-
       discountAmount = Math.min(calculatedDiscount, originalPrice);
       discountCodeId = discountDoc._id.toString();
     }
@@ -642,6 +637,9 @@ exports.createActivityPaymentIntent = async (req, res) => {
     let affiliateUserId = "";
     let affiliatorReward = 0;
     let affiliateDiscountAmount = 0;
+    let affiliateBudgetApplyMode =
+      activity.affiliate?.budgetApplyMode || "per_order";
+
     const totalValue = activity.affiliate?.totalValue || 0;
     const defaultRewardValue = activity.affiliate?.rewardValue || 0;
 
@@ -655,11 +653,18 @@ exports.createActivityPaymentIntent = async (req, res) => {
         if (setting) {
           affiliatorReward = setting.affiliatorReward;
           affiliateDiscountAmount = setting.customerDiscount;
+          affiliateBudgetApplyMode = setting.budgetApplyMode || "per_order";
         } else if (totalValue && defaultRewardValue) {
           affiliatorReward = defaultRewardValue;
           affiliateDiscountAmount = totalValue - defaultRewardValue;
         }
       }
+    }
+
+    if (affiliateBudgetApplyMode === "per_person") {
+      const multiplier = amountAdults + amountChildren;
+      affiliatorReward *= multiplier;
+      affiliateDiscountAmount *= multiplier;
     }
 
     const totalDiscount = discountAmount + affiliateDiscountAmount;
@@ -672,8 +677,9 @@ exports.createActivityPaymentIntent = async (req, res) => {
           previousPaymentIntentId
         );
         if (
-          existingIntent.status === "requires_payment_method" ||
-          existingIntent.status === "requires_confirmation"
+          ["requires_payment_method", "requires_confirmation"].includes(
+            existingIntent.status
+          )
         ) {
           if (existingIntent.amount !== amountInSatang) {
             await stripe.paymentIntents.update(previousPaymentIntentId, {
@@ -721,6 +727,7 @@ exports.createActivityPaymentIntent = async (req, res) => {
         affiliateCode: affiliateCode || "",
         affiliateUserId,
         affiliatorReward,
+        affiliateBudgetApplyMode,
         appliedDiscountCode: appliedDiscountCode || "",
         paymentMode: process.env.STRIPE_MODE === "live" ? "live" : "test",
       },

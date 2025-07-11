@@ -1216,16 +1216,18 @@ const updateAffiliateSetting = async (req, res) => {
       affiliatorReward,
       rewardType,
       enabled,
+      budgetApplyMode, // ✅ เพิ่มอ่านค่าจาก body
     } = req.body;
 
+    // Validation
     if (!activityId || customerDiscount == null || affiliatorReward == null) {
       return res.status(400).json({ message: "Missing required fields." });
     }
 
     if (customerDiscount < 0 || affiliatorReward < 0) {
-      return res
-        .status(400)
-        .json({ message: "Discount or reward cannot be negative." });
+      return res.status(400).json({
+        message: "Discount or reward cannot be negative.",
+      });
     }
 
     const activity = await Activity.findById(activityId);
@@ -1234,9 +1236,9 @@ const updateAffiliateSetting = async (req, res) => {
     }
 
     if (!activity.affiliate?.enabled) {
-      return res
-        .status(400)
-        .json({ message: "Affiliate is not enabled for this activity." });
+      return res.status(400).json({
+        message: "Affiliate is not enabled for this activity.",
+      });
     }
 
     const totalValue = activity.affiliate.totalValue || 0;
@@ -1247,7 +1249,9 @@ const updateAffiliateSetting = async (req, res) => {
     }
 
     const user = await User.findById(userId);
-    if (!user) return res.status(404).json({ message: "User not found." });
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
 
     // Update if exists, else push
     const index = user.affiliateSettings.findIndex(
@@ -1259,6 +1263,8 @@ const updateAffiliateSetting = async (req, res) => {
       user.affiliateSettings[index].affiliatorReward = affiliatorReward;
       user.affiliateSettings[index].rewardType = rewardType || "fixed";
       user.affiliateSettings[index].enabled = enabled ?? true;
+      user.affiliateSettings[index].budgetApplyMode =
+        budgetApplyMode || "per_order"; // ✅ เพิ่มตรงนี้
     } else {
       user.affiliateSettings.push({
         activityId,
@@ -1266,6 +1272,7 @@ const updateAffiliateSetting = async (req, res) => {
         affiliatorReward,
         rewardType: rewardType || "fixed",
         enabled: enabled ?? true,
+        budgetApplyMode: budgetApplyMode || "per_order", // ✅ เพิ่มตรงนี้
       });
     }
 
@@ -1277,7 +1284,9 @@ const updateAffiliateSetting = async (req, res) => {
     });
   } catch (err) {
     console.error("Error updating affiliate setting:", err);
-    res.status(500).json({ message: err.message || "Server error" });
+    res.status(500).json({
+      message: err.message || "Server error while updating affiliate setting.",
+    });
   }
 };
 
@@ -1310,11 +1319,21 @@ const getAffiliateSettings = async (req, res) => {
 const getAffiliateSummary = async (req, res) => {
   try {
     const userId = req.user.userId;
+    const OSS_BASE_URL = `https://${process.env.OSS_BUCKET_NAME}.${process.env.OSS_ENDPOINT}/`;
+
     const orders = await ActivityOrder.find({
       affiliateUserId: userId,
       status: "paid",
     })
-      .populate("userId", "user.email")
+      .populate({
+        path: "userId",
+        select: "user.email user.name userData",
+        populate: {
+          path: "userData",
+          model: "RegularUserData", // ✅ ระบุ model ชัดเจนเพื่อให้ populate ต่อยอดได้
+          select: "profileImage",
+        },
+      })
       .populate("activityId", "nameTh nameEn")
       .sort({ createdAt: -1 });
 
@@ -1327,16 +1346,23 @@ const getAffiliateSummary = async (req, res) => {
     res.status(200).json({
       totalOrders,
       totalReward,
-      totalWithdrawn: 0, // ยังไม่มีระบบถอน
+      totalWithdrawn: 0,
       orders: orders.map((order) => ({
         id: order._id,
         date: order.createdAt,
+        activityId: order.activityId?._id || order.activityId || null,
         activityName:
           order.activityId?.nameTh || order.activityId?.nameEn || "กิจกรรม",
         userEmail: order.userId?.user?.email || "-",
+        userName: order.userId?.user?.name || "-",
+        userProfileImage: order.userId?.userData?.profileImage
+          ? `${OSS_BASE_URL}${order.userId.userData.profileImage}`
+          : null,
         originalPrice: order.originalPrice,
-        affiliateDiscountAmount: order.affiliateDiscountAmount,
+        affiliateDiscountAmount: order.affiliateDiscountAmount, // ✅ ตอนนี้ส่งมาแค่นี้
         affiliateRewardAmount: order.affiliateRewardAmount,
+        paidAmount: order.paidAmount || 0,
+        totalDiscountAmount: order.totalDiscountAmount || 0, // ✅ เพิ่มบรรทัดนี้
         status: order.status,
       })),
     });

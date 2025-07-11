@@ -1,3 +1,4 @@
+// schemas/v1/activityOrder.schema.js
 const mongoose = require("mongoose");
 
 const activityOrderSchema = new mongoose.Schema(
@@ -92,6 +93,12 @@ const activityOrderSchema = new mongoose.Schema(
     affiliateDiscountAmount: {
       type: Number,
       default: 0,
+    },
+
+    affiliateBudgetApplyMode: {
+      type: String,
+      enum: ["per_order", "per_person"],
+      default: "per_order",
     },
 
     // ช่องทางการชำระเงิน เช่น stripe
