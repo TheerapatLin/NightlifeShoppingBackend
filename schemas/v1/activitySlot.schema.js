@@ -1,3 +1,4 @@
+// schemas/v1/activitySlot.schema.js
 const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 

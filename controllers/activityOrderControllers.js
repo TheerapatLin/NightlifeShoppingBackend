@@ -66,7 +66,7 @@ exports.webhookHandler = async (req, res) => {
         if (!activity) {
           console.error(`❌ Activity with ID ${activityId} not found.`);
           return res.status(400).send({ error: "Invalid activityId" });
-        } 
+        }
 
         const slot = await ActivitySlot.findById(activitySlotId);
         if (!slot) {
@@ -213,9 +213,357 @@ exports.webhookHandler = async (req, res) => {
   }
 };
 
+// exports.createActivityPaymentIntent = async (req, res) => {
+//   const stripe = getStripeInstance();
+//   const { items, affiliateCode, appliedDiscountCode } = req.body;
+
+//   if (!Array.isArray(items) || items.length === 0) {
+//     return res.status(400).json({ error: "Missing items in request body" });
+//   }
+
+//   const {
+//     activityId,
+//     scheduleId,
+//     startDate,
+//     amountAdults = 1,
+//     amountChildren = 0,
+//   } = items[0];
+
+//   if (!activityId || !scheduleId || !startDate) {
+//     return res
+//       .status(400)
+//       .json({ error: "activityId, scheduleId, and startDate are required" });
+//   }
+
+//   try {
+//     // 1) ตรวจสอบ Activity
+//     const activity = await Activity.findById(activityId);
+//     if (!activity) {
+//       return res.status(404).json({ error: "Activity not found" });
+//     }
+
+//     // 2) ตรวจสอบ Slot จาก ActivitySlot แทน
+//     const slot = await ActivitySlot.findById(scheduleId);
+//     if (!slot) {
+//       return res.status(404).json({ error: "Schedule (slot) not found" });
+//     }
+//     if (slot.activityId.toString() !== activityId.toString()) {
+//       return res
+//         .status(400)
+//         .json({ error: "Schedule does not belong to the specified activity." });
+//     }
+
+//     // 3) ราคาผู้ใหญ่ / เด็ก
+//     const adultPrice = slot.priceAdult || activity.priceAdult || slot.cost || 0;
+//     const childPrice = slot.priceChild || activity.priceChild || slot.cost || 0;
+
+//     // 4) คำนวณราคาก่อนส่วนลด
+//     const originalPrice =
+//       adultPrice * amountAdults + childPrice * amountChildren;
+
+//     let discountAmount = 0;
+//     let discountCodeId = null;
+
+//     // 5) ตรวจสอบ DiscountCode
+//     if (appliedDiscountCode) {
+//       const discountDoc = await DiscountCode.findOne({
+//         code: new RegExp(`^${appliedDiscountCode}$`, "i"),
+//       });
+
+//       if (!discountDoc) {
+//         return res
+//           .status(400)
+//           .json({ error: "Invalid discount code provided." });
+//       }
+
+//       const now = new Date();
+
+//       if (!discountDoc.isActive) {
+//         return res.status(400).json({ error: "Discount code is not active." });
+//       }
+//       if (now < new Date(discountDoc.validFrom)) {
+//         return res
+//           .status(400)
+//           .json({ error: "Discount code is not yet valid." });
+//       }
+//       if (now > new Date(discountDoc.validUntil)) {
+//         return res.status(400).json({ error: "Discount code has expired." });
+//       }
+//       if (
+//         discountDoc.usageLimit !== null &&
+//         discountDoc.usedCount >= discountDoc.usageLimit
+//       ) {
+//         return res
+//           .status(400)
+//           .json({ error: "Discount code usage limit reached." });
+//       }
+
+//       if (discountDoc.discountType === "amount") {
+//         discountAmount = discountDoc.discountValue;
+//       } else if (discountDoc.discountType === "percent") {
+//         discountAmount = (originalPrice * discountDoc.discountValue) / 100;
+//       } else if (discountDoc.discountType === "fixed_price") {
+//         discountAmount = originalPrice - discountDoc.discountValue;
+//       } else if (discountDoc.discountType === "free") {
+//         discountAmount = originalPrice;
+//       }
+
+//       if (discountAmount > originalPrice) {
+//         discountAmount = originalPrice;
+//       }
+
+//       discountCodeId = discountDoc._id.toString();
+//     }
+
+//     // 6) ตรวจสอบ AffiliateCode และคำนวณส่วนลด affiliate
+//     let affiliateUserId = null;
+//     let affiliatorReward = 0;
+//     let affiliateDiscountAmount = 0;
+
+//     const totalValue = activity.affiliate?.totalValue || 0;
+//     const defaultRewardValue = activity.affiliate?.rewardValue || 0;
+
+//     if (affiliateCode) {
+//       const affiliateUser = await User.findOne({ affiliateCode });
+//       if (affiliateUser) {
+//         affiliateUserId = affiliateUser._id.toString();
+
+//         const setting = await AffiliateSetting.findOne({
+//           userId: affiliateUserId,
+//           activityId,
+//           enabled: true,
+//         });
+
+//         if (setting) {
+//           affiliatorReward = setting.affiliatorReward;
+//           affiliateDiscountAmount = setting.customerDiscount;
+//         } else {
+//           affiliatorReward = defaultRewardValue;
+//           affiliateDiscountAmount = totalValue - defaultRewardValue;
+//         }
+//       }
+//     }
+
+//     const totalDiscount = discountAmount + affiliateDiscountAmount;
+//     const paidAmount = Math.max(originalPrice - totalDiscount, 0);
+
+//     console.log("🔢 originalPrice =", originalPrice);
+//     console.log("🔢 discountAmount =", discountAmount);
+//     console.log("🔢 affiliateDiscountAmount =", affiliateDiscountAmount);
+//     console.log("🔢 paidAmount =", paidAmount);
+
+//     // 7) สร้าง Stripe PaymentIntent
+//     const paymentIntent = await stripe.paymentIntents.create({
+//       amount: Math.round(paidAmount * 100),
+//       currency: "thb",
+//       automatic_payment_methods: { enabled: true },
+//       metadata: {
+//         activityId,
+//         scheduleId: slot._id.toString(),
+//         startDate,
+//         originalPrice,
+//         discountAmount,
+//         affiliateDiscountAmount,
+//         paidAmount,
+//         adults: amountAdults,
+//         children: amountChildren,
+//         discountCodeId: discountCodeId || "",
+//         affiliateCode: affiliateCode || "",
+//         affiliateUserId: affiliateUserId || "",
+//         affiliatorReward,
+//         appliedDiscountCode: appliedDiscountCode || "",
+//         paymentMode: process.env.STRIPE_MODE === "live" ? "live" : "test",
+//       },
+//     });
+
+//     return res.send({ clientSecret: paymentIntent.client_secret });
+//   } catch (error) {
+//     console.error("❌ Error creating payment intent:", error);
+//     return res.status(500).json({ error: "Internal server error" });
+//   }
+// };
+
+// exports.createActivityPaymentIntent = async (req, res) => {
+//   const stripe = getStripeInstance();
+//   const { items, affiliateCode, appliedDiscountCode } = req.body;
+
+//   if (!Array.isArray(items) || items.length === 0) {
+//     return res.status(400).json({ error: "Missing items in request body" });
+//   }
+
+//   const {
+//     activityId,
+//     scheduleId,
+//     startDate,
+//     amountAdults = 1,
+//     amountChildren = 0,
+//   } = items[0];
+
+//   if (!activityId || !scheduleId || !startDate) {
+//     return res
+//       .status(400)
+//       .json({ error: "activityId, scheduleId, and startDate are required" });
+//   }
+
+//   try {
+//     const activity = await Activity.findById(activityId);
+//     if (!activity) {
+//       return res.status(404).json({ error: "Activity not found" });
+//     }
+
+//     const slot = await ActivitySlot.findById(scheduleId);
+//     if (!slot) {
+//       return res.status(404).json({ error: "Schedule (slot) not found" });
+//     }
+//     if (slot.activityId.toString() !== activityId.toString()) {
+//       return res
+//         .status(400)
+//         .json({ error: "Schedule does not belong to the specified activity." });
+//     }
+
+//     const adultPrice = slot.priceAdult || activity.priceAdult || slot.cost || 0;
+//     const childPrice = slot.priceChild || activity.priceChild || slot.cost || 0;
+
+//     const originalPrice =
+//       adultPrice * amountAdults + childPrice * amountChildren;
+
+//     let discountAmount = null; // ส่วนลดจากโค้ด
+//     let discountCodeId = null;
+
+//     if (appliedDiscountCode) {
+//       const discountDoc = await DiscountCode.findOne({
+//         code: new RegExp(`^${appliedDiscountCode}$`, "i"),
+//       });
+
+//       if (!discountDoc) {
+//         return res
+//           .status(400)
+//           .json({ error: "Invalid discount code provided." });
+//       }
+
+//       const now = new Date();
+//       if (!discountDoc.isActive) {
+//         return res.status(400).json({ error: "Discount code is not active." });
+//       }
+//       if (now < new Date(discountDoc.validFrom)) {
+//         return res
+//           .status(400)
+//           .json({ error: "Discount code is not yet valid." });
+//       }
+//       if (now > new Date(discountDoc.validUntil)) {
+//         return res.status(400).json({ error: "Discount code has expired." });
+//       }
+//       if (
+//         discountDoc.usageLimit !== null &&
+//         discountDoc.usedCount >= discountDoc.usageLimit
+//       ) {
+//         return res
+//           .status(400)
+//           .json({ error: "Discount code usage limit reached." });
+//       }
+
+//       let calculatedDiscount = 0;
+//       if (discountDoc.discountType === "amount") {
+//         calculatedDiscount = discountDoc.discountValue;
+//       } else if (discountDoc.discountType === "percent") {
+//         calculatedDiscount = (originalPrice * discountDoc.discountValue) / 100;
+//       } else if (discountDoc.discountType === "fixed_price") {
+//         calculatedDiscount = originalPrice - discountDoc.discountValue;
+//       } else if (discountDoc.discountType === "free") {
+//         calculatedDiscount = originalPrice;
+//       }
+//       if (calculatedDiscount > originalPrice) {
+//         calculatedDiscount = originalPrice;
+//       }
+
+//       discountAmount = calculatedDiscount;
+//       discountCodeId = discountDoc._id.toString();
+//     }
+
+//     // ตรวจสอบ Affiliate Code
+//     let affiliateUserId = null;
+//     let affiliatorReward = 0;
+//     let affiliateDiscountAmount = null; // ส่วนลดจาก affiliate
+
+//     const totalValue = activity.affiliate?.totalValue || 0;
+//     const defaultRewardValue = activity.affiliate?.rewardValue || 0;
+
+//     if (affiliateCode) {
+//       const affiliateUser = await User.findOne({ affiliateCode });
+//       if (affiliateUser) {
+//         affiliateUserId = affiliateUser._id.toString();
+
+//         const setting = affiliateUser.affiliateSettings.find(
+//           (s) => s.activityId.toString() === activityId.toString() && s.enabled
+//         );
+
+//         if (setting) {
+//           affiliatorReward = setting.affiliatorReward;
+//           affiliateDiscountAmount = setting.customerDiscount;
+//         } else if (totalValue && defaultRewardValue) {
+//           affiliatorReward = defaultRewardValue;
+//           affiliateDiscountAmount = totalValue - defaultRewardValue;
+//         }
+//       }
+//     }
+
+//     const totalDiscount =
+//       (discountAmount || 0) + (affiliateDiscountAmount || 0);
+//     const paidAmount = Math.max(originalPrice - totalDiscount, 0);
+
+//     console.log("✅ originalPrice =", originalPrice);
+//     console.log("✅ discountAmount =", discountAmount);
+//     console.log("✅ affiliateDiscountAmount =", affiliateDiscountAmount);
+//     console.log("✅ paidAmount =", paidAmount);
+
+//     const paymentIntent = await stripe.paymentIntents.create({
+//       amount: Math.round(paidAmount * 100),
+//       currency: "thb",
+//       automatic_payment_methods: { enabled: true },
+//       metadata: {
+//         activityId,
+//         scheduleId: slot._id.toString(),
+//         startDate,
+//         originalPrice,
+//         discountAmount: discountAmount || 0,
+//         affiliateDiscountAmount: affiliateDiscountAmount || 0,
+//         paidAmount,
+//         adults: amountAdults,
+//         children: amountChildren,
+//         discountCodeId: discountCodeId || "",
+//         affiliateCode: affiliateCode || "",
+//         affiliateUserId: affiliateUserId || "",
+//         affiliatorReward,
+//         appliedDiscountCode: appliedDiscountCode || "",
+//         paymentMode: process.env.STRIPE_MODE === "live" ? "live" : "test",
+//       },
+//     });
+
+//     // ✅ ส่งกลับไป frontend พร้อมข้อมูลราคา
+//     const responsePayload = {
+//       clientSecret: paymentIntent.client_secret,
+//       originalPrice,
+//       paidAmount,
+//     };
+
+//     if (discountAmount !== null) {
+//       responsePayload.discountAmount = discountAmount;
+//     }
+//     if (affiliateDiscountAmount !== null) {
+//       responsePayload.affiliateDiscountAmount = affiliateDiscountAmount;
+//     }
+
+//     return res.send(responsePayload);
+//   } catch (error) {
+//     console.error("❌ Error creating payment intent:", error);
+//     return res.status(500).json({ error: "Internal server error" });
+//   }
+// };
+
 exports.createActivityPaymentIntent = async (req, res) => {
   const stripe = getStripeInstance();
-  const { items, affiliateCode, appliedDiscountCode } = req.body;
+  const { items, affiliateCode, appliedDiscountCode, previousPaymentIntentId } =
+    req.body;
 
   if (!Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ error: "Missing items in request body" });
@@ -236,131 +584,163 @@ exports.createActivityPaymentIntent = async (req, res) => {
   }
 
   try {
-    // 1) ตรวจสอบ Activity
     const activity = await Activity.findById(activityId);
-    if (!activity) {
-      return res.status(404).json({ error: "Activity not found" });
-    }
+    if (!activity) return res.status(404).json({ error: "Activity not found" });
 
-    // 2) ตรวจสอบ Slot จาก ActivitySlot แทน
     const slot = await ActivitySlot.findById(scheduleId);
-    if (!slot) {
+    if (!slot)
       return res.status(404).json({ error: "Schedule (slot) not found" });
-    }
-    if (
-      slot.activityId.toString() !== activityId.toString() &&
-      slot.activityId !== activityId
-    ) {
+
+    if (slot.activityId.toString() !== activityId.toString()) {
       return res
         .status(400)
         .json({ error: "Schedule does not belong to the specified activity." });
     }
 
-    // 3) ราคาผู้ใหญ่ / เด็ก
     const adultPrice = slot.priceAdult || activity.priceAdult || slot.cost || 0;
     const childPrice = slot.priceChild || activity.priceChild || slot.cost || 0;
-
-    // 4) คำนวณราคาก่อนส่วนลด
     const originalPrice =
       adultPrice * amountAdults + childPrice * amountChildren;
 
     let discountAmount = 0;
-    let discountCodeId = null;
+    let discountCodeId = "";
 
-    // 5) ตรวจสอบ DiscountCode
     if (appliedDiscountCode) {
-      let discountQuery = { code: appliedDiscountCode };
-      const caseInsensitiveQuery = {
-        code: { $regex: `^${appliedDiscountCode}$`, $options: "i" },
-      };
-
-      let discountDoc =
-        (await DiscountCode.findOne(discountQuery)) ||
-        (await DiscountCode.findOne(caseInsensitiveQuery));
-
-      if (!discountDoc) {
+      const discountDoc = await DiscountCode.findOne({
+        code: new RegExp(`^${appliedDiscountCode}$`, "i"),
+      });
+      if (!discountDoc)
         return res
           .status(400)
           .json({ error: "Invalid discount code provided." });
-      }
-
       const now = new Date();
-
-      if (!discountDoc.isActive) {
-        return res.status(400).json({ error: "Discount code is not active." });
-      }
-      if (now < new Date(discountDoc.validFrom)) {
-        return res
-          .status(400)
-          .json({ error: "Discount code is not yet valid." });
-      }
-      if (now > new Date(discountDoc.validUntil)) {
-        return res.status(400).json({ error: "Discount code has expired." });
-      }
       if (
-        discountDoc.usageLimit !== null &&
-        discountDoc.usedCount >= discountDoc.usageLimit
+        !discountDoc.isActive ||
+        now < discountDoc.validFrom ||
+        now > discountDoc.validUntil
       ) {
-        return res
-          .status(400)
-          .json({ error: "Discount code usage limit reached." });
+        return res.status(400).json({ error: "Discount code is not valid." });
       }
-
-      if (discountDoc.discountType === "amount") {
-        discountAmount = discountDoc.discountValue;
-      } else if (discountDoc.discountType === "percent") {
-        discountAmount = (originalPrice * discountDoc.discountValue) / 100;
-      } else if (discountDoc.discountType === "fixed_price") {
-        discountAmount = originalPrice - discountDoc.discountValue;
-      } else if (discountDoc.discountType === "free") {
-        discountAmount = originalPrice;
-      }
-
-      if (discountAmount > originalPrice) {
-        discountAmount = originalPrice;
-      }
-
+      let calculatedDiscount = 0;
+      if (discountDoc.discountType === "amount")
+        calculatedDiscount = discountDoc.discountValue;
+      else if (discountDoc.discountType === "percent")
+        calculatedDiscount = (originalPrice * discountDoc.discountValue) / 100;
+      else if (discountDoc.discountType === "fixed_price")
+        calculatedDiscount = originalPrice - discountDoc.discountValue;
+      else if (discountDoc.discountType === "free")
+        calculatedDiscount = originalPrice;
+      discountAmount = Math.min(calculatedDiscount, originalPrice);
       discountCodeId = discountDoc._id.toString();
     }
 
-    const paidAmount = Math.max(originalPrice - discountAmount, 0);
+    let affiliateUserId = "";
+    let affiliatorReward = 0;
+    let affiliateDiscountAmount = 0;
+    let affiliateBudgetApplyMode =
+      activity.affiliate?.budgetApplyMode || "per_order";
 
-    // 6) ตรวจสอบ AffiliateCode
-    let affiliateUserId = null;
+    const totalValue = activity.affiliate?.totalValue || 0;
+    const defaultRewardValue = activity.affiliate?.rewardValue || 0;
+
     if (affiliateCode) {
       const affiliateUser = await User.findOne({ affiliateCode });
       if (affiliateUser) {
         affiliateUserId = affiliateUser._id.toString();
+        const setting = affiliateUser.affiliateSettings.find(
+          (s) => s.activityId.toString() === activityId.toString() && s.enabled
+        );
+        if (setting) {
+          affiliatorReward = setting.affiliatorReward;
+          affiliateDiscountAmount = setting.customerDiscount;
+          affiliateBudgetApplyMode = setting.budgetApplyMode || "per_order";
+        } else if (totalValue && defaultRewardValue) {
+          affiliatorReward = defaultRewardValue;
+          affiliateDiscountAmount = totalValue - defaultRewardValue;
+        }
       }
     }
 
-    console.log("🔢 originalPrice =", originalPrice);
-    console.log("🔢 discountAmount =", discountAmount);
-    console.log("🔢 paidAmount =", paidAmount);
+    if (affiliateBudgetApplyMode === "per_person") {
+      const multiplier = amountAdults + amountChildren;
+      affiliatorReward *= multiplier;
+      affiliateDiscountAmount *= multiplier;
+    }
 
-    // 7) สร้าง Stripe PaymentIntent
+    const totalDiscount = discountAmount + affiliateDiscountAmount;
+    const paidAmount = Math.max(originalPrice - totalDiscount, 0);
+    const amountInSatang = Math.round(paidAmount * 100);
+
+    if (previousPaymentIntentId) {
+      try {
+        const existingIntent = await stripe.paymentIntents.retrieve(
+          previousPaymentIntentId
+        );
+        if (
+          ["requires_payment_method", "requires_confirmation"].includes(
+            existingIntent.status
+          )
+        ) {
+          if (existingIntent.amount !== amountInSatang) {
+            await stripe.paymentIntents.update(previousPaymentIntentId, {
+              amount: amountInSatang,
+            });
+            console.log(
+              `✅ Updated PaymentIntent amount: ${previousPaymentIntentId}`
+            );
+          }
+          return res.send({
+            clientSecret: existingIntent.client_secret,
+            originalPrice,
+            paidAmount,
+            discountAmount,
+            affiliateDiscountAmount,
+            paymentIntentId: existingIntent.id,
+          });
+        } else {
+          console.log(
+            `⚠️ PaymentIntent status ${existingIntent.status} cannot be reused, creating new.`
+          );
+        }
+      } catch (err) {
+        console.warn(
+          `⚠️ Could not retrieve previous PaymentIntent: ${err.message}`
+        );
+      }
+    }
+
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(paidAmount * 100),
+      amount: amountInSatang,
       currency: "thb",
       automatic_payment_methods: { enabled: true },
       metadata: {
         activityId,
-        scheduleId: slot._id.toString(),
+        scheduleId,
         startDate,
         originalPrice,
         discountAmount,
+        affiliateDiscountAmount,
         paidAmount,
         adults: amountAdults,
         children: amountChildren,
-        discountCodeId: discountCodeId || "",
+        discountCodeId,
         affiliateCode: affiliateCode || "",
-        affiliateUserId: affiliateUserId || "",
+        affiliateUserId,
+        affiliatorReward,
+        affiliateBudgetApplyMode,
         appliedDiscountCode: appliedDiscountCode || "",
         paymentMode: process.env.STRIPE_MODE === "live" ? "live" : "test",
       },
     });
 
-    return res.send({ clientSecret: paymentIntent.client_secret });
+    return res.send({
+      clientSecret: paymentIntent.client_secret,
+      originalPrice,
+      paidAmount,
+      discountAmount,
+      affiliateDiscountAmount,
+      paymentIntentId: paymentIntent.id,
+    });
   } catch (error) {
     console.error("❌ Error creating payment intent:", error);
     return res.status(500).json({ error: "Internal server error" });

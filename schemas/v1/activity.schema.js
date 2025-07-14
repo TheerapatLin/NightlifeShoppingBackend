@@ -1,3 +1,4 @@
+// schemas/v1/activity.schema.js
 const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 
@@ -114,6 +115,12 @@ const activitySchema = new Schema({
     rewardType: { type: String, enum: ["fixed", "percent"], default: "fixed" },
     rewardValue: { type: Number, default: 100 }, // ถ้า fixed คือจำนวนเงิน / ถ้า percent คือ %
     maxRewardPerUser: { type: Number, default: 500 }, // (optional) จำกัดค่าตอบแทนต่อ user
+    // ✅ NEW: specify whether budget applies "per_order" or "per_person"
+    budgetApplyMode: {
+      type: String,
+      enum: ["per_order", "per_person"],
+      default: "per_order",
+    },
   },
 });
 
