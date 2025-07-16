@@ -1290,6 +1290,68 @@ const updateAffiliateSetting = async (req, res) => {
   }
 };
 
+const getAffiliateBankInfo = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const user = await User.findById(userId).lean();
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const bankInfo = user.affiliateBankInfo || {};
+
+    // ✅ ถ้าไม่มี contactEmail, fallback เป็น user email
+    if (!bankInfo.contactEmail && user.user?.email) {
+      bankInfo.contactEmail = user.user.email;
+    }
+
+    return res.json(bankInfo);
+  } catch (err) {
+    console.error("Error fetching bank info:", err);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+const updateAffiliateBankInfo = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { accountName, accountNumber, bankCode, bankName, contactEmail } =
+      req.body;
+
+    if (
+      !accountName ||
+      !accountNumber ||
+      !bankCode ||
+      !bankName ||
+      !contactEmail
+    ) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      {
+        affiliateBankInfo: {
+          accountName,
+          accountNumber,
+          bankCode,
+          bankName,
+          contactEmail, // ✅ บันทึก contactEmail
+          updatedAt: new Date(),
+        },
+      },
+      { new: true }
+    );
+
+    if (!updatedUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    return res.json({ message: "Bank info updated successfully" });
+  } catch (err) {
+    console.error("Error updating bank info:", err);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 const getAffiliateSettings = async (req, res) => {
   try {
     const userId = req.user.userId;
@@ -1397,4 +1459,6 @@ module.exports = {
   updateAffiliateSetting,
   getAffiliateSettings,
   getAffiliateSummary,
+  updateAffiliateBankInfo,
+  getAffiliateBankInfo,
 };
