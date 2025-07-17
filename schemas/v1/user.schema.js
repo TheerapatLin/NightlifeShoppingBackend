@@ -84,6 +84,15 @@ const UserSchema = new mongoose.Schema(
         },
       },
     ],
+    // ✅ New field for affiliate bank info
+    affiliateBankInfo: {
+      accountName: { type: String },
+      accountNumber: { type: String },
+      bankCode: { type: String }, // e.g., "SCB", "KTB", "OTHER"
+      bankName: { type: String }, // e.g., "Siam Commercial Bank" or custom
+      contactEmail: {type: String},
+      updatedAt: { type: Date, default: Date.now },
+    },
     businessId: { type: String },
     loggedInDevices: [
       {

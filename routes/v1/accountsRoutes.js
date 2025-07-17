@@ -39,6 +39,8 @@ const {
   updateAffiliateSetting,
   getAffiliateSettings,
   getAffiliateSummary,
+  updateAffiliateBankInfo,
+  getAffiliateBankInfo
 } = require("../../controllers/accountsControllers");
 
 const {
@@ -50,6 +52,13 @@ const {
 router.put("/affiliate-setting", verifyAccessTokenWeb, updateAffiliateSetting);
 router.get("/affiliate-settings", verifyAccessTokenWeb, getAffiliateSettings);
 router.get("/affiliate-summary", verifyAccessTokenWeb, getAffiliateSummary);
+router.put(
+  "/affiliate-bank-info",
+  verifyAccessTokenWeb,
+  updateAffiliateBankInfo
+);
+router.get("/affiliate-bank-info", verifyAccessTokenWeb, getAffiliateBankInfo);
+
 
 //? Set Password
 router.get("/set-password", setPasswordPage);
