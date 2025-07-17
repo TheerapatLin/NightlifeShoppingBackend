@@ -574,7 +574,12 @@ exports.createPaymentIntentService = async (request) => {
   } = request;
 
   if (!Array.isArray(items) || items.length === 0) {
-    throw new Error("Missing items in request body");
+    // throw new Error("Missing items in request body"); 
+    return {
+      error: true,
+      message: "Missing items in request body",
+      status: "400"
+    };
   }
 
   const {
@@ -586,17 +591,41 @@ exports.createPaymentIntentService = async (request) => {
   } = items[0];
 
   if (!activityId || !scheduleId || !startDate) {
-    throw new Error("activityId, scheduleId, and startDate are required");
+    // throw new Error("activityId, scheduleId, and startDate are required");
+    return {
+      error: true,
+      message: "activityId, scheduleId, and startDate are required",
+      status: "400"
+    };
   }
 
   const activity = await Activity.findById(activityId);
-  if (!activity) throw new Error("Activity not found");
+  if (!activity) {
+    // throw new Error("Activity not found")
+    return {
+      error: true,
+      message: "Activity not found",
+      status: "404"
+    };
+  };
 
   const slot = await ActivitySlot.findById(scheduleId);
-  if (!slot) throw new Error("Schedule (slot) not found");
+  if (!slot) {
+    // throw new Error("Schedule (slot) not found")
+    return {
+      error: true,
+      message: "Schedule (slot) not found",
+      status: "404"
+    };
+  };
 
   if (slot.activityId.toString() !== activityId.toString()) {
-    throw new Error("Schedule does not belong to the specified activity.");
+    // throw new Error("Schedule does not belong to the specified activity.");
+    return {
+      error: true,
+      message: "Schedule does not belong to the specified activity.",
+      status: "400"
+    };
   }
 
   const adultPrice = slot.priceAdult || activity.priceAdult || slot.cost || 0;
@@ -611,7 +640,14 @@ exports.createPaymentIntentService = async (request) => {
     const discountDoc = await DiscountCode.findOne({
       code: new RegExp(`^${appliedDiscountCode}$`, "i"),
     });
-    if (!discountDoc) throw new Error("Invalid discount code provided.");
+    if (!discountDoc) {
+      // throw new Error("Invalid discount code provided.")
+      return {
+        error: true,
+        message: "Invalid discount code provided.",
+        status: "400"
+      };
+    };
 
     const now = new Date();
     if (
@@ -619,7 +655,12 @@ exports.createPaymentIntentService = async (request) => {
       now < discountDoc.validFrom ||
       now > discountDoc.validUntil
     ) {
-      throw new Error("Discount code is not valid.");
+      // throw new Error("Discount code is not valid.");
+      return {
+        error: true,
+        message: "Discount code is not valid..",
+        status: "400"
+      };
     }
 
     let calculatedDiscount = 0;
@@ -689,6 +730,9 @@ exports.createPaymentIntentService = async (request) => {
           await stripe.paymentIntents.update(previousPaymentIntentId, {
             amount: amountInSatang,
           });
+          console.log(
+            `✅ Updated PaymentIntent amount: ${previousPaymentIntentId}`
+          );
         }
         return {
           clientSecret: existingIntent.client_secret,
@@ -698,6 +742,10 @@ exports.createPaymentIntentService = async (request) => {
           affiliateDiscountAmount,
           paymentIntentId: existingIntent.id,
         };
+      } else {
+        console.log(
+          `⚠️ PaymentIntent status ${existingIntent.status} cannot be reused, creating new.`
+        );
       }
     } catch (err) {
       console.warn("⚠️ Failed to reuse PaymentIntent:", err.message);
@@ -757,11 +805,18 @@ exports.createActivityPaymentIntent = async (req, res) => {
       }
     )
     const response = await job.waitUntilFinished(createPaymentIntentQueueEvent);
-    // console.log("response : ",response)
+    
+    switch(response.status) {
+      case "400" :
+        return res.status(400).json({ message: response.message });
+      case "404" :
+        return res.status(404).json({ message: response.message });
+    }
+
     return res.status(200).json(response)
   } catch (error) {
     console.error("❌ Error in controller:", error);
-    return res.status(500).json({ error: error.message || "Internal server error" });
+    return res.status(500).json({ error: "Internal server error" });
   }
 };
 
