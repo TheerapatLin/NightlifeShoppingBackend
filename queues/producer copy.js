@@ -18,10 +18,22 @@ const workerOptions = {
   }
 }
 
-// create producer
 // ------------------------------- getActivityById Queue ------------------------------- //
 const queueGetAcivityById = new Queue('getAcivityById-queue', { connection })
 const queueGetAcivityByIdEvent = new QueueEvents('getAcivityById-queue', { connection })
+
+
+// --------------------------------------------- STATUS QUEUE EVENT --------------------------------------------- //
+// queueGetAcivityByIdEvent.on('completed', (job) => {
+//   console.log(`✅ Producer : get-activity-by -id => Job ${job.jobId} completed!!`)
+//   // console.log(`job : ${JSON.stringify(job, null, 2)}`)
+//   // console.log(`job return : ${JSON.stringify(job.returnvalue, null, 2)}`)
+// })
+
+// queueGetAcivityByIdEvent.on('failed', ({ job, failedReason }) => {
+//   console.log(`❌ Producer : get-activity-by -id => Job ${job.jobId} failed: ${failedReason}`)
+// })
+
 
 // --------------------------------------------- getAcivityById Worker --------------------------------------------- //
 const getAcivityByIdWorker = new Worker('getAcivityById-queue', async job => {  // สร้าง worker ของ getAcivityById
@@ -39,9 +51,37 @@ const getAcivityByIdWorker = new Worker('getAcivityById-queue', async job => {  
 })
 
 
+// --------------------------------------------- STATUS WORKER EVENT --------------------------------------------- //
+// getAcivityByIdWorker.on('completed', job => {
+//   console.log(`✅ Worker : get-activity-by -id => Job ${job.id} complete!!`)
+// })
+
+// getAcivityByIdWorker.on('failed', (job, err) => {
+//   console.log(`❌ Worker : get-activity-by -id => Job ${job.id} failed... : ${err.message}`)
+// })
+
+// if (getAcivityByIdWorker.isRunning()) {
+//   console.log('getAcivityById Worker is running...')
+// }
+
+
+
+
 // ------------------------------- createPaymentIntent Queue ------------------------------- //
 const createPaymentIntentQueue = new Queue('createPaymentIntent-queue', { connection })
 const createPaymentIntentQueueEvent = new QueueEvents('createPaymentIntent-queue', { connection })
+
+
+// --------------------------------------------- STATUS QUEUE EVENT --------------------------------------------- //
+// createPaymentIntentQueueEvent.on('completed', (job) => {
+//   console.log(`✅ Producer : create-payment-intent => Job ${job} completed!!`)
+//   // console.log(`job : ${JSON.stringify(job, null, 2)}`)
+//   // console.log(`job return : ${JSON.stringify(job.returnvalue, null, 2)}`)
+// })
+
+// createPaymentIntentQueueEvent.on('failed', ({ job, failedReason }) => {
+//   console.log(`❌ Producer : create-payment-intent => Job ${job} failed: ${failedReason}`)
+// })
 
 // --------------------------------------------- createPaymentIntent Worker --------------------------------------------- //
 const createPaymentIntentWorker = new Worker('createPaymentIntent-queue', async job => {
@@ -54,19 +94,33 @@ const createPaymentIntentWorker = new Worker('createPaymentIntent-queue', async 
 })
 
 
+// --------------------------------------------- STATUS Worker EVENT --------------------------------------------- //
+// createPaymentIntentWorker.on('completed', job => {
+//   console.log(`✅ Worker : create-payment-intent => Job ${job.id} complete!!`)
+// })
+
+// createPaymentIntentWorker.on('failed', (job, err) => {
+//   console.log(`❌ Worker : create-payment-intent => Job ${job.id} failed... : ${err.message}`)
+// })
+
+// if (createPaymentIntentWorker.isRunning()) {
+//   console.log('createActivityPaymentIntentWorker is running...')
+// }
+
+
+
 // ------------------------------- webhookHandler Queue ------------------------------- //
 const webhookHandlerQueue = new Queue('webhookHandler-queue', { connection })
 const webhookHandlerQueueEvent = new QueueEvents('webhookHandler-queue', { connection })
 
-// // check job status
-// // --------------------------------------------- STATUS QUEUE EVENT --------------------------------------------- //
-// webhookHandlerQueueEvent.on('completed', (job) => {
-//   console.log(`✅ Producer : webhookHandler => Job ${job} completed!!`)
-// })
+// --------------------------------------------- STATUS QUEUE EVENT --------------------------------------------- //
+webhookHandlerQueueEvent.on('completed', (job) => {
+  console.log(`✅ Producer : webhookHandler => Job ${job} completed!!`)
+})
 
-// webhookHandlerQueueEvent.on('failed', ({ job, failedReason }) => {
-//   console.log(`❌ Producer : webhookHandler => Job ${job} failed: ${failedReason}`)
-// })
+webhookHandlerQueueEvent.on('failed', ({ job, failedReason }) => {
+  console.log(`❌ Producer : webhookHandler => Job ${job} failed: ${failedReason}`)
+})
 
 // --------------------------------------------- createPaymentIntent Worker --------------------------------------------- //
 const webhookHandlerWorker = new Worker('webhookHandler-queue', async job => {
@@ -79,20 +133,19 @@ const webhookHandlerWorker = new Worker('webhookHandler-queue', async job => {
   workerOptions
 })
 
-// // check worker status
-// // --------------------------------------------- STATUS Worker EVENT --------------------------------------------- //
-// webhookHandlerWorker.on('completed', job => {
-//   console.log(`✅ Worker : webhookHandler => Job ${job.id} complete!!`)
-// })
 
-// webhookHandlerWorker.on('failed', (job, err) => {
-//   console.log(`❌ Worker : webhookHandler => Job ${job.id} failed... : ${err.message}`)
-// })
+// --------------------------------------------- STATUS Worker EVENT --------------------------------------------- //
+webhookHandlerWorker.on('completed', job => {
+  console.log(`✅ Worker : webhookHandler => Job ${job.id} complete!!`)
+})
 
-// // check worker running
-// if (webhookHandlerWorker.isRunning()) {
-//   console.log('webhookHandlerWorker is running...')
-// }
+webhookHandlerWorker.on('failed', (job, err) => {
+  console.log(`❌ Worker : webhookHandler => Job ${job.id} failed... : ${err.message}`)
+})
+
+if (webhookHandlerWorker.isRunning()) {
+  console.log('webhookHandlerWorker is running...')
+}
 
 
 module.exports = {
@@ -101,6 +154,5 @@ module.exports = {
   createPaymentIntentQueue,
   createPaymentIntentQueueEvent,
   webhookHandlerQueue,
-  webhookHandlerQueueEvent,
-  workerOptions
+  webhookHandlerQueueEvent
 }

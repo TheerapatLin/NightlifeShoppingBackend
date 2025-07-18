@@ -4,8 +4,6 @@ const { OSSStorage, deleteFolder } = require("../modules/storage/oss");
 const { ChatRoom, Message } = require("../schemas/v1/chat.schema");
 const mongoose = require("mongoose");
 
-const { queueGetAcivityById, queueGetAcivityByIdEvent, workerOptions } = require('../queues/producer')
-
 // ------------------------ สร้างกิจกรรม --------------------------
 exports.createActivity = async (req, res, io) => {
   try {
@@ -269,12 +267,12 @@ exports.getAllActivity = async (req, res) => {
       populatedActivities.map(async (activity) => {
         const creator = activity.creator
           ? await User.findById(activity.creator.id)
-            .populate({
-              path: "userData",
-              model: "RegularUserData",
-              select: "profileImage", // ดึงข้อมูลรูปภาพโปรไฟล์ของผู้สร้าง
-            })
-            .select("user.name userData")
+              .populate({
+                path: "userData",
+                model: "RegularUserData",
+                select: "profileImage", // ดึงข้อมูลรูปภาพโปรไฟล์ของผู้สร้าง
+              })
+              .select("user.name userData")
           : null;
 
         if (creator) {
@@ -309,12 +307,12 @@ exports.getAllActivity = async (req, res) => {
     const hasMore =
       totalCount >
       activities.length +
-      (startTime
-        ? await Activity.countDocuments({
-          ...dateMatch,
-          createdAt: { $gt: new Date(startTime) },
-        })
-        : 0);
+        (startTime
+          ? await Activity.countDocuments({
+              ...dateMatch,
+              createdAt: { $gt: new Date(startTime) },
+            })
+          : 0);
 
     console.log(totalCount);
     console.log(hasMore);
@@ -326,118 +324,94 @@ exports.getAllActivity = async (req, res) => {
   }
 };
 
-// --------------------------------------------- getActivityById --------------------------------------------- //
-
-exports.getActivityByIdService = async (activityId) => { // สร้าง function ใหม่เพื่อนำไปใช้ใน worker (logic ยังเหมือนเดิม)
-
-  if (!mongoose.Types.ObjectId.isValid(activityId)) {
-    return {
-      error: true,
-      message: "ไม่พบ activityId",
-      status: "400"
-    };
-  }
-
-  // ดึงข้อมูลกิจกรรมหลัก พร้อมกับข้อมูลที่เติมเต็ม (populate) ผู้เข้าร่วม
-  const activity = await Activity.findById(activityId).populate({
-    path: "participants.userId", // เติมข้อมูลผู้ใช้ใน `participants`
-    select: "user.name userData", // เลือกเฉพาะฟิลด์ชื่อผู้ใช้และข้อมูลผู้ใช้เพิ่มเติม
-    populate: {
-      path: "userData", // ดึงข้อมูลโปรไฟล์เพิ่มเติมจาก `userData`
-      model: "RegularUserData",
-      select: "profileImage", // เลือกเฉพาะฟิลด์รูปภาพโปรไฟล์
-    },
-  });
-
-  if (!activity) {
-    return {
-      error: true,
-      message: "ไม่พบกิจกรรม",
-      status: "404"
-    };
-  }
-
-  // ดึงข้อมูลของผู้สร้างกิจกรรม
-  const creator =
-    activity.creator && activity.creator.id
-      ? await User.findById(activity.creator.id)
-        .populate({
-          path: "userData", // เติมข้อมูลโปรไฟล์ของผู้สร้างกิจกรรม
-          model: "RegularUserData",
-          select: "profileImage", // เลือกรูปภาพโปรไฟล์ของผู้สร้าง
-        })
-        .select("user.name userData") // เลือกฟิลด์ชื่อผู้สร้างและข้อมูลเพิ่มเติม
-      : null;
-
-  if (creator) {
-    activity.creator = {
-      id: activity.creator.id,
-      name: creator.user.name, // ชื่อผู้สร้าง
-      profileImage: creator.userData
-        ? creator.userData.profileImage || "" // รูปภาพโปรไฟล์ ถ้าไม่มีให้ใช้ค่าว่าง
-        : "",
-    };
-  }
-
-  // อัปเดตรูปโปรไฟล์ของผู้เข้าร่วมกิจกรรม
-  // activity.participants = activity.participants.map((participant) => ({
-  //   ...participant.toObject(),
-  //   userId: {
-  //     ...participant.userId.toObject(),
-  //     profileImage: participant.userId.userData
-  //       ? participant.userId.userData.profileImage || "" // รูปภาพโปรไฟล์ของผู้เข้าร่วมกิจกรรม
-  //       : "",
-  //   },
-  // }));
-
-  // ดึงข้อมูลกิจกรรมที่เกี่ยวข้องซึ่งมี parentId เดียวกัน
-  let relatedActivities = [];
-  if (activity.parentId) {
-    relatedActivities = await Activity.find({
-      parentId: activity.parentId, // ดึงกิจกรรมที่มี parentId เดียวกัน
-      _id: { $ne: activityId }, // ไม่รวมกิจกรรมปัจจุบัน
-    })
-      .select("_id activityTime chatRoomId") // เลือกฟิลด์ `_id`, `activityTime` และ `chatRoomId`
-      .sort({ "activityTime.start": 1 }); // เรียงข้อมูลตามเวลาเริ่มต้น
-  }
-
-  // จัดรูปแบบวันที่สำหรับกิจกรรมที่เกี่ยวข้อง
-  const relatedDates = relatedActivities.map((related) => ({
-    id: related._id,
-    startDate: related.activityTime?.start || null, // วันที่เริ่มต้น
-    endDate: related.activityTime?.end || null, // วันที่สิ้นสุด
-    chatRoomId: related.chatRoomId || null, // เพิ่ม `chatRoomId` ลงในข้อมูลที่ส่งกลับ
-  }));
-
-  return {
-    activity,
-    relatedDates: relatedDates.filter(date => date.startDate && date.endDate),
-    currentActivityId: activityId,
-  };
-};
-
 exports.getAcivityById = async (req, res) => {
   try {
     const activityId = req.params.activityId;
 
-    // สร้าง job และนำ job เข้าสู่ queue
-    const job = await queueGetAcivityById.add('getAcivityById-job', { activityId }, workerOptions)
-
-    // รอผลลัพธ์จากการประมวลผลใน worker
-    const response = await job.waitUntilFinished(queueGetAcivityByIdEvent);
-
-    // if error
-    switch (response.status) {
-      case "400":
-        return res.status(400).json({ message: response.message });
-      case "404":
-        return res.status(404).json({ message: response.message });
+    if (!mongoose.Types.ObjectId.isValid(activityId)) {
+      return res.status(400).json({ message: "ไม่พบ activityId" });
     }
+
+    // ดึงข้อมูลกิจกรรมหลัก พร้อมกับข้อมูลที่เติมเต็ม (populate) ผู้เข้าร่วม
+    const activity = await Activity.findById(activityId).populate({
+      path: "participants.userId", // เติมข้อมูลผู้ใช้ใน `participants`
+      select: "user.name userData", // เลือกเฉพาะฟิลด์ชื่อผู้ใช้และข้อมูลผู้ใช้เพิ่มเติม
+      populate: {
+        path: "userData", // ดึงข้อมูลโปรไฟล์เพิ่มเติมจาก `userData`
+        model: "RegularUserData",
+        select: "profileImage", // เลือกเฉพาะฟิลด์รูปภาพโปรไฟล์
+      },
+    });
+
+    if (!activity) {
+      return res.status(404).json({ message: "ไม่พบกิจกรรม" });
+    }
+
+    // ดึงข้อมูลของผู้สร้างกิจกรรม
+    const creator =
+      activity.creator && activity.creator.id
+        ? await User.findById(activity.creator.id)
+            .populate({
+              path: "userData", // เติมข้อมูลโปรไฟล์ของผู้สร้างกิจกรรม
+              model: "RegularUserData",
+              select: "profileImage", // เลือกรูปภาพโปรไฟล์ของผู้สร้าง
+            })
+            .select("user.name userData") // เลือกฟิลด์ชื่อผู้สร้างและข้อมูลเพิ่มเติม
+        : null;
+
+    if (creator) {
+      activity.creator = {
+        id: activity.creator.id,
+        name: creator.user.name, // ชื่อผู้สร้าง
+        profileImage: creator.userData
+          ? creator.userData.profileImage || "" // รูปภาพโปรไฟล์ ถ้าไม่มีให้ใช้ค่าว่าง
+          : "",
+      };
+    }
+
+    // อัปเดตรูปโปรไฟล์ของผู้เข้าร่วมกิจกรรม
+    // activity.participants = activity.participants.map((participant) => ({
+    //   ...participant.toObject(),
+    //   userId: {
+    //     ...participant.userId.toObject(),
+    //     profileImage: participant.userId.userData
+    //       ? participant.userId.userData.profileImage || "" // รูปภาพโปรไฟล์ของผู้เข้าร่วมกิจกรรม
+    //       : "",
+    //   },
+    // }));
+
+    // ดึงข้อมูลกิจกรรมที่เกี่ยวข้องซึ่งมี parentId เดียวกัน
+    let relatedActivities = [];
+    if (activity.parentId) {
+      relatedActivities = await Activity.find({
+        parentId: activity.parentId, // ดึงกิจกรรมที่มี parentId เดียวกัน
+        _id: { $ne: activityId }, // ไม่รวมกิจกรรมปัจจุบัน
+      })
+        .select("_id activityTime chatRoomId") // เลือกฟิลด์ `_id`, `activityTime` และ `chatRoomId`
+        .sort({ "activityTime.start": 1 }); // เรียงข้อมูลตามเวลาเริ่มต้น
+    }
+
+    // จัดรูปแบบวันที่สำหรับกิจกรรมที่เกี่ยวข้อง
+    const relatedDates = relatedActivities.map((related) => ({
+      id: related._id,
+      startDate: related.activityTime?.start || null, // วันที่เริ่มต้น
+      endDate: related.activityTime?.end || null, // วันที่สิ้นสุด
+      chatRoomId: related.chatRoomId || null, // เพิ่ม `chatRoomId` ลงในข้อมูลที่ส่งกลับ
+    }));
+
+    // รวมข้อมูลทั้งหมดเพื่อส่งกลับ
+    const response = {
+      activity, // ข้อมูลกิจกรรมหลัก
+      relatedDates: relatedDates.filter(
+        (date) => date.startDate && date.endDate // เฉพาะกิจกรรมที่มีวันที่เริ่มและสิ้นสุดที่สมบูรณ์เท่านั้น
+      ),
+      currentActivityId: activityId, // ระบุ `activityId` ของกิจกรรมปัจจุบัน
+    };
 
     res.status(200).json(response);
   } catch (error) {
     console.log(error.message);
-    res.status(501).json({ message: error.message });
+    res.status(500).json({ message: error.message });
   }
 };
 
