@@ -40,7 +40,8 @@ const {
   getAffiliateSettings,
   getAffiliateSummary,
   updateAffiliateBankInfo,
-  getAffiliateBankInfo
+  getAffiliateBankInfo,
+  getAffiliateDiscount
 } = require("../../controllers/accountsControllers");
 
 const {
@@ -49,6 +50,7 @@ const {
   verifyAccessTokenWeb,
 } = require("../../middlewares/auth");
 
+router.get("/affiliate-discount", getAffiliateDiscount);
 router.put("/affiliate-setting", verifyAccessTokenWeb, updateAffiliateSetting);
 router.get("/affiliate-settings", verifyAccessTokenWeb, getAffiliateSettings);
 router.get("/affiliate-summary", verifyAccessTokenWeb, getAffiliateSummary);

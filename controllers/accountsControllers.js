@@ -1434,6 +1434,67 @@ const getAffiliateSummary = async (req, res) => {
   }
 };
 
+const getAffiliateDiscount = async (req, res) => {
+  const { affiliateCode, activityId } = req.query;
+
+  if (!affiliateCode || !activityId) {
+    return res
+      .status(400)
+      .json({ error: "affiliateCode and activityId are required." });
+  }
+
+  try {
+    const user = await User.findOne({ affiliateCode });
+    if (!user) {
+      return res.status(404).json({ error: "Affiliate user not found." });
+    }
+
+    const activity = await Activity.findById(activityId);
+    if (!activity) {
+      return res.status(404).json({ error: "Activity not found." });
+    }
+
+    // หา setting เฉพาะจาก user ถ้ามี
+    const customSetting = user.affiliateSettings?.find(
+      (s) => s.activityId.toString() === activityId && s.enabled === true
+    );
+
+    if (customSetting) {
+      const totalValue = activity.affiliate?.totalValue || 0;
+      const affiliatorReward = customSetting.affiliatorReward || 0;
+      const customerDiscount = customSetting.customerDiscount || 0;
+
+      return res.json({
+        customerDiscount,
+        rewardType: customSetting.rewardType,
+        affiliatorReward,
+        source: "user_override",
+        totalValue,
+      });
+    }
+
+    // fallback: ใช้ของ activity
+    if (activity.affiliate?.enabled) {
+      const rewardValue = activity.affiliate.rewardValue || 0;
+      const totalValue = activity.affiliate.totalValue || 0;
+      const customerDiscount = Math.max(totalValue - rewardValue, 0);
+
+      return res.json({
+        customerDiscount,
+        rewardType: activity.affiliate.rewardType,
+        affiliatorReward: rewardValue,
+        source: "activity_default",
+        totalValue,
+      });
+    }
+
+    return res.status(404).json({ error: "No affiliate data available." });
+  } catch (err) {
+    console.error("Error in getAffiliateDiscount:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
 module.exports = {
   changePassword,
   resetPassword,
@@ -1461,4 +1522,5 @@ module.exports = {
   getAffiliateSummary,
   updateAffiliateBankInfo,
   getAffiliateBankInfo,
+  getAffiliateDiscount,
 };
