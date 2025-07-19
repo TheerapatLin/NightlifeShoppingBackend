@@ -55,7 +55,13 @@ exports.webhookHandler = async (req, res) => {
 
         const adults = parseInt(metadata.adults || "1");
         const children = parseInt(metadata.children || "0");
-        const discountCodeId = metadata.discountCodeId || null;
+        let discountCodeId = null;
+        if (
+          metadata.discountCodeId &&
+          mongoose.Types.ObjectId.isValid(metadata.discountCodeId)
+        ) {
+          discountCodeId = new mongoose.Types.ObjectId(metadata.discountCodeId);
+        }
         const affiliateUserId = metadata.affiliateUserId || null;
         const paymentMode = metadata.paymentMode || "test";
 
@@ -159,6 +165,8 @@ exports.webhookHandler = async (req, res) => {
             adults,
             children,
             discountCodeId,
+            discountCodeUsed: metadata.appliedDiscountCode || "",
+            discountCodeAmount: parseFloat(metadata.discountAmount || "0"),
             affiliateUserId,
             affiliateCode: metadata.affiliateCode || "",
             affiliateRewardAmount,
@@ -621,6 +629,41 @@ exports.createActivityPaymentIntent = async (req, res) => {
       ) {
         return res.status(400).json({ error: "Discount code is not valid." });
       }
+
+      // 🧪 DEBUG LOG: ตรวจสอบก่อนเข้าเงื่อนไข include/exclude
+      console.log(
+        "🧪 Checking discountDoc.eventIdsInorExclude =",
+        discountDoc.eventIdsInorExclude
+      );
+      console.log("🧪 Current activityId =", activityId);
+      console.log(
+        "🧪 Discount eventIds =",
+        (discountDoc.eventIds || []).map((id) => id.toString())
+      );
+
+      // ✅ ตรวจสอบว่า code ใช้กับ activity นี้ได้ไหม
+      if (
+        Array.isArray(discountDoc.eventIds) &&
+        discountDoc.eventIdsInorExclude // ← ใช้ชื่อที่ถูกต้อง
+      ) {
+        const isMatch = discountDoc.eventIds.some(
+          (id) => id.toString() === activityId.toString()
+        );
+
+        if (
+          (discountDoc.eventIdsInorExclude === "include" && !isMatch) ||
+          (discountDoc.eventIdsInorExclude === "exclude" && isMatch)
+        ) {
+          console.log(
+            "❌ Discount code not valid for this activityId:",
+            activityId
+          );
+          return res
+            .status(400)
+            .json({ error: "This code cannot be used with this activity." });
+        }
+      }
+
       let calculatedDiscount = 0;
       if (discountDoc.discountType === "amount")
         calculatedDiscount = discountDoc.discountValue;
@@ -661,15 +704,21 @@ exports.createActivityPaymentIntent = async (req, res) => {
       }
     }
 
+    const totalDiscount = discountAmount + affiliateDiscountAmount;
+    const paidAmount = Math.max(originalPrice - totalDiscount, 0);
+    const amountInSatang = Math.round(paidAmount * 100);
+
+    if (amountInSatang < 1000) {
+      return res.status(400).json({
+        error: "Total payable amount must be at least 10 THB.",
+      });
+    }
+
     if (affiliateBudgetApplyMode === "per_person") {
       const multiplier = amountAdults + amountChildren;
       affiliatorReward *= multiplier;
       affiliateDiscountAmount *= multiplier;
     }
-
-    const totalDiscount = discountAmount + affiliateDiscountAmount;
-    const paidAmount = Math.max(originalPrice - totalDiscount, 0);
-    const amountInSatang = Math.round(paidAmount * 100);
 
     if (previousPaymentIntentId) {
       try {
