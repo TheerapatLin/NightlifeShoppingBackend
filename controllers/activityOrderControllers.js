@@ -576,7 +576,7 @@ exports.createActivityPaymentIntent = async (req, res) => {
   if (!Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ error: "Missing items in request body" });
   }
-
+  console.log("📦 CODE FROM CLIENT =", appliedDiscountCode);
   const {
     activityId,
     scheduleId,
@@ -733,6 +733,27 @@ exports.createActivityPaymentIntent = async (req, res) => {
           if (existingIntent.amount !== amountInSatang) {
             await stripe.paymentIntents.update(previousPaymentIntentId, {
               amount: amountInSatang,
+              metadata: {
+                ...existingIntent.metadata, // <— preserve old data
+                activityId,
+                scheduleId,
+                startDate,
+                originalPrice,
+                discountAmount,
+                affiliateDiscountAmount,
+                paidAmount,
+                adults: amountAdults,
+                children: amountChildren,
+                discountCodeId,
+                affiliateCode: affiliateCode || "",
+                affiliateUserId,
+                affiliatorReward,
+                affiliateBudgetApplyMode,
+                appliedDiscountCode: appliedDiscountCode || "",
+                discountCodeAmount: discountAmount,
+                paymentMode:
+                  process.env.STRIPE_MODE === "live" ? "live" : "test",
+              },
             });
             console.log(
               `✅ Updated PaymentIntent amount: ${previousPaymentIntentId}`
@@ -778,6 +799,7 @@ exports.createActivityPaymentIntent = async (req, res) => {
         affiliatorReward,
         affiliateBudgetApplyMode,
         appliedDiscountCode: appliedDiscountCode || "",
+        discountCodeAmount: discountAmount,
         paymentMode: process.env.STRIPE_MODE === "live" ? "live" : "test",
       },
     });
@@ -793,113 +815,6 @@ exports.createActivityPaymentIntent = async (req, res) => {
   } catch (error) {
     console.error("❌ Error creating payment intent:", error);
     return res.status(500).json({ error: "Internal server error" });
-  }
-};
-
-exports.createActivityPaymentIntentฺBackup = async (req, res) => {
-  const stripe = getStripeInstance();
-  const { items, affiliateCode } = req.body;
-
-  if (!Array.isArray(items) || items.length === 0) {
-    return res.status(400).json({ error: "Missing items in request body" });
-  }
-
-  const {
-    activityId,
-    scheduleId,
-    startDate,
-    amountAdults = 1,
-    amountChildren = 0,
-    discountCodeId = null,
-    affiliateUserId = null,
-    appliedDiscountCode = "",
-  } = items[0];
-
-  if (!activityId || !scheduleId || !startDate) {
-    return res
-      .status(400)
-      .json({ error: "activityId, scheduleId, and startDate are required" });
-  }
-
-  try {
-    // ตรวจสอบว่า activityId และ scheduleId มีอยู่
-    const activity = await Activity.findById(activityId);
-    if (!activity) {
-      return res.status(404).json({ error: "Activity not found" });
-    }
-
-    const schedule = activity.schedule.find(
-      (s) => s._id.toString() === scheduleId
-    );
-    if (!schedule) {
-      return res.status(404).json({ error: "Schedule not found" });
-    }
-
-    // ราคาผู้ใหญ่ / เด็ก
-    const adultPrice =
-      schedule.priceAdult || activity.priceAdult || schedule.cost || 0;
-    console.log(`------------------- adultPrice = ${adultPrice}`);
-    const childPrice =
-      schedule.priceChild || activity.priceChild || schedule.cost || 0;
-    console.log(`------------------- childPrice = ${childPrice}`);
-
-    // คำนวณราคาจริง
-    const originalPrice =
-      adultPrice * amountAdults + childPrice * amountChildren;
-
-    // จะใช้ระบบส่วนลดภายหลัง ตอนนี้ให้เป็น 0
-    const discountAmount = 0;
-    const paidAmount = originalPrice - discountAmount;
-
-    // ✅ หาจาก affiliateCode
-    let affiliateUserId = null;
-    if (affiliateCode) {
-      const affiliateUser = await User.findOne({ affiliateCode });
-      if (affiliateUser) {
-        affiliateUserId = affiliateUser._id.toString();
-      }
-    }
-
-    // log ไว้เช็ก
-    console.log("🔢 originalPrice =", originalPrice);
-    console.log("🔢 discountAmount =", discountAmount);
-    console.log("🔢 paidAmount =", paidAmount);
-
-    // Validate affiliateUserId และ discountCodeId (optional)
-    const validDiscountCodeId =
-      discountCodeId && mongoose.Types.ObjectId.isValid(discountCodeId)
-        ? discountCodeId
-        : "";
-    const validAffiliateUserId =
-      affiliateUserId && mongoose.Types.ObjectId.isValid(affiliateUserId)
-        ? affiliateUserId
-        : "";
-
-    // สร้าง PaymentIntent
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(paidAmount * 100), // Stripe ใช้หน่วยสตางค์
-      currency: "thb",
-      automatic_payment_methods: { enabled: true },
-      metadata: {
-        activityId,
-        scheduleId,
-        startDate,
-        originalPrice,
-        discountAmount,
-        paidAmount,
-        adults: amountAdults,
-        children: amountChildren,
-        discountCodeId: discountCodeId || "",
-        affiliateCode: affiliateCode || "",
-        affiliateUserId: affiliateUserId || "",
-        paymentMode: process.env.STRIPE_MODE === "live" ? "live" : "test",
-      },
-    });
-
-    return res.send({ clientSecret: paymentIntent.client_secret });
-  } catch (error) {
-    console.error("❌ Error creating payment intent:", error.message);
-    return res.status(400).json({ error: error.message });
   }
 };
 
