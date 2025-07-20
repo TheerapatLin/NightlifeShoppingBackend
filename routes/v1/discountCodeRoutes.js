@@ -11,6 +11,6 @@ const {
 } = require("../../middlewares/auth");
 
 // POST /api/v1/discount-code/validate
-router.post("/validate", verifyAccessTokenWebPass, validateDiscountCode);
+router.post("/validate", validateDiscountCode);
 
 module.exports = router;
