@@ -151,6 +151,26 @@ const discountCodeSchema = new mongoose.Schema({
     default: false,
   },
 
+  isPerOrder: { type: Boolean, default: true },
+
+  userRestrictionMode: {
+    type: String,
+    enum: ["all", "include", "exclude"],
+    default: "all",
+  },
+  allowedUserIds: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+  ],
+  blockedUserIds: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+  ],
+
   // ผู้สร้างโค้ดนี้ (admin หรือระบบ)
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
