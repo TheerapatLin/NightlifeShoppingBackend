@@ -6,7 +6,7 @@ const connection = new IORedis(`${REDISDATABASEURI}`, {
   maxRetriesPerRequest: null
 })
 
-const workerOptions = {
+const jobOptions = {
   attempts: 3,            // จำนวนครั้งที่ retry ถ้า failed
   backoff: {
       type: 'exponential',// 3s => 6s => 12s
@@ -35,7 +35,7 @@ const getAcivityByIdWorker = new Worker('getAcivityById-queue', async job => {  
   return result
 }, {
   connection,             // เชื่อมต่อ ioredis
-  workerOptions
+  jobOptions
 })
 
 
@@ -50,7 +50,7 @@ const createPaymentIntentWorker = new Worker('createPaymentIntent-queue', async 
   return result
 }, {
   connection,             // เชื่อมต่อ ioredis
-  workerOptions
+  jobOptions
 })
 
 
@@ -76,7 +76,7 @@ const webhookHandlerWorker = new Worker('webhookHandler-queue', async job => {
   return result
 }, {
   connection,             // เชื่อมต่อ ioredis
-  workerOptions
+  jobOptions
 })
 
 // // check worker status
@@ -102,5 +102,5 @@ module.exports = {
   createPaymentIntentQueueEvent,
   webhookHandlerQueue,
   webhookHandlerQueueEvent,
-  workerOptions
+  jobOptions
 }

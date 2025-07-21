@@ -4,7 +4,7 @@ const { OSSStorage, deleteFolder } = require("../modules/storage/oss");
 const { ChatRoom, Message } = require("../schemas/v1/chat.schema");
 const mongoose = require("mongoose");
 
-const { queueGetAcivityById, queueGetAcivityByIdEvent, workerOptions } = require('../queues/producer')
+const { queueGetAcivityById, queueGetAcivityByIdEvent, jobOptions  } = require('../queues/producer')
 
 // ------------------------ สร้างกิจกรรม --------------------------
 exports.createActivity = async (req, res, io) => {

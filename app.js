@@ -203,6 +203,9 @@ app.use("/api/v1/discount-code", discountCodeRoutes);
 const activitySlotRoutes = require("./routes/v1/activitySlotRoutes");
 app.use("/api/v1/activity-slot", activitySlotRoutes);
 
+const {serverAdapter} = require('./queues/dashboard')
+app.use('/admin/queues',serverAdapter.getRouter())
+
 //? Webhook
 const v1WebhookRouter = require("./routes/v1/webhookRoutes");
 app.use("/api/v1", v1WebhookRouter);

@@ -20,7 +20,7 @@ const {
   createPaymentIntentQueueEvent,
   webhookHandlerQueue,
   webhookHandlerQueueEvent,
-  workerOptions
+  jobOptions 
 } = require('../queues/producer')
 
 // generate affiliateCode แบบ 8 ตัว อังกฤษ+ตัวเลข
