@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
 const discountCodeSchema = new mongoose.Schema({
   // รหัสโค้ด เช่น "WELCOME100"
@@ -41,7 +41,7 @@ const discountCodeSchema = new mongoose.Schema({
   // - bonus_only = ไม่มีส่วนลด แต่มีของแถมหรือสิทธิพิเศษ
   discountType: {
     type: String,
-    enum: ['percent', 'amount', 'fixed_price', 'free', 'bonus_only'],
+    enum: ["percent", "amount", "fixed_price", "free", "bonus_only"],
     required: true,
   },
 
@@ -98,18 +98,18 @@ const discountCodeSchema = new mongoose.Schema({
     type: [String],
     default: [],
   },
-
+  eventIdsInorExclude: { type: String, default: "exclude" },
   // จำกัดให้ใช้กับเฉพาะ event ที่กำหนด (ถ้าไม่ระบุ = ใช้ได้ทุก event)
   eventIds: {
     type: [mongoose.Schema.Types.ObjectId],
-    ref: 'Event',
+    ref: "Event",
     default: [],
   },
 
   // affiliate ที่โปรโมทโค้ดนี้ (ถ้ามี)
   affiliateUserId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
+    ref: "User",
     default: null,
   },
 
@@ -119,7 +119,7 @@ const discountCodeSchema = new mongoose.Schema({
   // - percent_paid = % จากยอดชำระจริง
   affiliateCommissionType: {
     type: String,
-    enum: ['fixed', 'percent_total', 'percent_paid'],
+    enum: ["fixed", "percent_total", "percent_paid"],
     default: null,
   },
 
@@ -141,10 +141,40 @@ const discountCodeSchema = new mongoose.Schema({
     default: null,
   },
 
+  loginNeed: {
+    type: Boolean,
+    default: false,
+  },
+
+  caseSensitive: {
+    type: Boolean,
+    default: false,
+  },
+
+  isPerOrder: { type: Boolean, default: true },
+
+  userRestrictionMode: {
+    type: String,
+    enum: ["all", "include", "exclude"],
+    default: "all",
+  },
+  allowedUserIds: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+  ],
+  blockedUserIds: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+  ],
+
   // ผู้สร้างโค้ดนี้ (admin หรือระบบ)
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Admin',
+    ref: "Admin",
     required: true,
   },
 
@@ -162,9 +192,9 @@ const discountCodeSchema = new mongoose.Schema({
 });
 
 // อัปเดต updatedAt อัตโนมัติเมื่อมีการ save
-discountCodeSchema.pre('save', function (next) {
+discountCodeSchema.pre("save", function (next) {
   this.updatedAt = Date.now();
   next();
 });
 
-module.exports = mongoose.model('DiscountCode', discountCodeSchema);
+module.exports = mongoose.model("DiscountCode", discountCodeSchema);

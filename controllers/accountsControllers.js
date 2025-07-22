@@ -1,3 +1,5 @@
+// controllers/accountControllers.js
+
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
@@ -15,6 +17,9 @@ const sendVerifyEmail = require("../modules/email/sendVerifyEmail");
 const sendResetPasswordEmail = require("../modules/email/sendResetPasswordEmail");
 
 const user = require("../schemas/v1/user.schema");
+const User = require("../schemas/v1/user.schema");
+const ActivityOrder = require("../schemas/v1/activityOrder.schema");
+const Activity = require("../schemas/v1/activity.schema");
 
 const getOneAccount = async (req, res) => {
   try {
@@ -97,9 +102,11 @@ const uploadProfileImage = async (req, res) => {
   //console.log("start uploadProfileImage");
   try {
     const user = req.user;
-    //console.log("user", user);
-    const userData = await RegularUserData.findById(user.userData);
-
+    console.log("user", user);
+    const foundUser = await User.findById(user.userId);
+    console.log("foundUser.userData", foundUser?.userData);
+    const userData = await RegularUserData.findById(foundUser.userData);
+    console.log("userData", userData);
     if (!userData)
       return res.status(404).json({ error: "User data not found" });
 
@@ -117,13 +124,13 @@ const uploadProfileImage = async (req, res) => {
 
     //const imageUrl = `https://${OSSStorage.options.bucket}.${OSSStorage.options.endpoint}/${objectName}`;
     const imageUrl = objectName;
-
+    console.log(imageUrl);
     userData.profileImage = imageUrl;
     await userData.save();
 
     res.json({ success: true, profileImage: imageUrl });
   } catch (err) {
-    //console.error("Upload failed:", err);
+    console.error("Upload failed:", err);
     console.log("Upload failed:", err);
     res.status(500).json({ error: "Upload failed" });
   }
@@ -1200,6 +1207,294 @@ const checkAccount = async (req, res) => {
   }
 };
 
+const updateAffiliateSetting = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const {
+      activityId,
+      customerDiscount,
+      affiliatorReward,
+      rewardType,
+      enabled,
+      budgetApplyMode, // ✅ เพิ่มอ่านค่าจาก body
+    } = req.body;
+
+    // Validation
+    if (!activityId || customerDiscount == null || affiliatorReward == null) {
+      return res.status(400).json({ message: "Missing required fields." });
+    }
+
+    if (customerDiscount < 0 || affiliatorReward < 0) {
+      return res.status(400).json({
+        message: "Discount or reward cannot be negative.",
+      });
+    }
+
+    const activity = await Activity.findById(activityId);
+    if (!activity) {
+      return res.status(404).json({ message: "Activity not found." });
+    }
+
+    if (!activity.affiliate?.enabled) {
+      return res.status(400).json({
+        message: "Affiliate is not enabled for this activity.",
+      });
+    }
+
+    const totalValue = activity.affiliate.totalValue || 0;
+    if (customerDiscount + affiliatorReward !== totalValue) {
+      return res.status(400).json({
+        message: `The sum of customerDiscount (${customerDiscount}) and affiliatorReward (${affiliatorReward}) must equal ${totalValue}.`,
+      });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    // Update if exists, else push
+    const index = user.affiliateSettings.findIndex(
+      (s) => s.activityId.toString() === activityId.toString()
+    );
+
+    if (index > -1) {
+      user.affiliateSettings[index].customerDiscount = customerDiscount;
+      user.affiliateSettings[index].affiliatorReward = affiliatorReward;
+      user.affiliateSettings[index].rewardType = rewardType || "fixed";
+      user.affiliateSettings[index].enabled = enabled ?? true;
+      user.affiliateSettings[index].budgetApplyMode =
+        budgetApplyMode || "per_order"; // ✅ เพิ่มตรงนี้
+    } else {
+      user.affiliateSettings.push({
+        activityId,
+        customerDiscount,
+        affiliatorReward,
+        rewardType: rewardType || "fixed",
+        enabled: enabled ?? true,
+        budgetApplyMode: budgetApplyMode || "per_order", // ✅ เพิ่มตรงนี้
+      });
+    }
+
+    await user.save();
+
+    res.status(200).json({
+      message: "Affiliate setting updated successfully.",
+      affiliateSettings: user.affiliateSettings,
+    });
+  } catch (err) {
+    console.error("Error updating affiliate setting:", err);
+    res.status(500).json({
+      message: err.message || "Server error while updating affiliate setting.",
+    });
+  }
+};
+
+const getAffiliateBankInfo = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const user = await User.findById(userId).lean();
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const bankInfo = user.affiliateBankInfo || {};
+
+    // ✅ ถ้าไม่มี contactEmail, fallback เป็น user email
+    if (!bankInfo.contactEmail && user.user?.email) {
+      bankInfo.contactEmail = user.user.email;
+    }
+
+    return res.json(bankInfo);
+  } catch (err) {
+    console.error("Error fetching bank info:", err);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+const updateAffiliateBankInfo = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { accountName, accountNumber, bankCode, bankName, contactEmail } =
+      req.body;
+
+    if (
+      !accountName ||
+      !accountNumber ||
+      !bankCode ||
+      !bankName ||
+      !contactEmail
+    ) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      {
+        affiliateBankInfo: {
+          accountName,
+          accountNumber,
+          bankCode,
+          bankName,
+          contactEmail, // ✅ บันทึก contactEmail
+          updatedAt: new Date(),
+        },
+      },
+      { new: true }
+    );
+
+    if (!updatedUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    return res.json({ message: "Bank info updated successfully" });
+  } catch (err) {
+    console.error("Error updating bank info:", err);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+const getAffiliateSettings = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    const foundUser = await User.findById(userId, "affiliateSettings");
+
+    if (!foundUser) {
+      return res.status(404).json({
+        status: "error",
+        message: "User not found",
+      });
+    }
+
+    return res.status(200).json({
+      status: "success",
+      data: foundUser.affiliateSettings || [],
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({
+      status: "error",
+      message: err.message || "Failed to get affiliate settings",
+    });
+  }
+};
+
+const getAffiliateSummary = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const OSS_BASE_URL = `https://${process.env.OSS_BUCKET_NAME}.${process.env.OSS_ENDPOINT}/`;
+
+    const orders = await ActivityOrder.find({
+      affiliateUserId: userId,
+      status: "paid",
+    })
+      .populate({
+        path: "userId",
+        select: "user.email user.name userData",
+        populate: {
+          path: "userData",
+          model: "RegularUserData", // ✅ ระบุ model ชัดเจนเพื่อให้ populate ต่อยอดได้
+          select: "profileImage",
+        },
+      })
+      .populate("activityId", "nameTh nameEn")
+      .sort({ createdAt: -1 });
+
+    const totalOrders = orders.length;
+    const totalReward = orders.reduce(
+      (sum, order) => sum + (order.affiliateRewardAmount || 0),
+      0
+    );
+
+    res.status(200).json({
+      totalOrders,
+      totalReward,
+      totalWithdrawn: 0,
+      orders: orders.map((order) => ({
+        id: order._id,
+        date: order.createdAt,
+        activityId: order.activityId?._id || order.activityId || null,
+        activityName:
+          order.activityId?.nameTh || order.activityId?.nameEn || "กิจกรรม",
+        userEmail: order.userId?.user?.email || "-",
+        userName: order.userId?.user?.name || "-",
+        userProfileImage: order.userId?.userData?.profileImage
+          ? `${OSS_BASE_URL}${order.userId.userData.profileImage}`
+          : null,
+        originalPrice: order.originalPrice,
+        affiliateDiscountAmount: order.affiliateDiscountAmount, // ✅ ตอนนี้ส่งมาแค่นี้
+        affiliateRewardAmount: order.affiliateRewardAmount,
+        paidAmount: order.paidAmount || 0,
+        totalDiscountAmount: order.totalDiscountAmount || 0, // ✅ เพิ่มบรรทัดนี้
+        status: order.status,
+      })),
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch affiliate summary" });
+  }
+};
+
+const getAffiliateDiscount = async (req, res) => {
+  const { affiliateCode, activityId } = req.query;
+
+  if (!affiliateCode || !activityId) {
+    return res
+      .status(400)
+      .json({ error: "affiliateCode and activityId are required." });
+  }
+
+  try {
+    const user = await User.findOne({ affiliateCode });
+    if (!user) {
+      return res.status(404).json({ error: "Affiliate user not found." });
+    }
+
+    const activity = await Activity.findById(activityId);
+    if (!activity) {
+      return res.status(404).json({ error: "Activity not found." });
+    }
+
+    // หา setting เฉพาะจาก user ถ้ามี
+    const customSetting = user.affiliateSettings?.find(
+      (s) => s.activityId.toString() === activityId && s.enabled === true
+    );
+
+    if (customSetting) {
+      const totalValue = activity.affiliate?.totalValue || 0;
+      const affiliatorReward = customSetting.affiliatorReward || 0;
+      const customerDiscount = customSetting.customerDiscount || 0;
+
+      return res.json({
+        customerDiscount,
+        rewardType: customSetting.rewardType,
+        affiliatorReward,
+        source: "user_override",
+        totalValue,
+      });
+    }
+
+    // fallback: ใช้ของ activity
+    if (activity.affiliate?.enabled) {
+      const rewardValue = activity.affiliate.rewardValue || 0;
+      const totalValue = activity.affiliate.totalValue || 0;
+      const customerDiscount = Math.max(totalValue - rewardValue, 0);
+
+      return res.json({
+        customerDiscount,
+        rewardType: activity.affiliate.rewardType,
+        affiliatorReward: rewardValue,
+        source: "activity_default",
+        totalValue,
+      });
+    }
+
+    return res.status(404).json({ error: "No affiliate data available." });
+  } catch (err) {
+    console.error("Error in getAffiliateDiscount:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
 module.exports = {
   changePassword,
   resetPassword,
@@ -1222,4 +1517,10 @@ module.exports = {
   checkAccount,
   updateUserProfile,
   uploadProfileImage,
+  updateAffiliateSetting,
+  getAffiliateSettings,
+  getAffiliateSummary,
+  updateAffiliateBankInfo,
+  getAffiliateBankInfo,
+  getAffiliateDiscount,
 };

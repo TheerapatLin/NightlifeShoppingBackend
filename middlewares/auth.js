@@ -190,6 +190,70 @@ const verifyAccessTokenWeb = async (req, res, next) => {
   }
 };
 
+const verifyAccessTokenWebPass = async (req, res, next) => {
+  const cookieAccessToken = req.cookies.accessToken;
+  const cookieRefreshToken = req.cookies.refreshToken;
+
+  const role = req.headers["role"];
+
+  if (role != "superadmin") {
+    let macAddressRegex = new RegExp(
+      /^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})|([0-9a-fA-F]{4}.[0-9a-fA-F]{4}.[0-9a-fA-F]{4})$/
+    );
+    if (!req.headers["device-fingerprint"]) {
+      return res
+        .status(401)
+        .send({ status: "error", message: "Device-fingerprint is required!" });
+    } else {
+      //console.log(req.headers["device-fingerprint"]);
+    }
+
+    if (!cookieAccessToken) {
+      return res.status(401).send({
+        status: "error",
+        message: "Cookie AccessToken is required for authentication",
+      });
+    }
+
+    jwt.verify(
+      cookieAccessToken,
+      JWT_ACCESS_TOKEN_SECRET,
+      async (err, decoded) => {
+        req.user = decoded;
+        if (err) {
+          req.user = null;
+          //return accessTokenCatchError(err, res);
+        } else {
+          const lastAccessToken = await redis.get(
+            `Last_Access_Token_${decoded.userId}_${req.headers["device-fingerprint"]}`
+          );
+          if (lastAccessToken !== cookieAccessToken) {
+            req.user = null;
+            // return res.status(401).send({
+            //   status: "error",
+            //   message: `Incorrect Access Token! lastAccessToken = ${lastAccessToken}`,
+            // });
+          }
+        }
+        
+        return next();
+      }
+    );
+  } else {
+    const superAdminApiKey = req.headers["x-super-admin-api-key"];
+    if (
+      superAdminApiKey &&
+      superAdminApiKey === process.env.SUPER_ADMIN_API_KEY
+    ) {
+      return next();
+    } else {
+      return res
+        .status(403)
+        .json({ message: "Unauthorized: Invalid API key for super admin" });
+    }
+  }
+};
+
 const authRoles = (requiredRoles) => (req, res, next) => {
   const role = req.user.role; // ✅ ใช้ req.headers แทน req.header
   //console.log(`user role = ${role}`);
@@ -251,5 +315,6 @@ module.exports = {
   verifyRefreshToken,
   verifyAPIKey,
   verifyAccessTokenWeb,
+  verifyAccessTokenWebPass,
   authRoles,
 };

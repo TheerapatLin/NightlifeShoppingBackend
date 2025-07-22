@@ -1,3 +1,4 @@
+// schemas/v1/activityOrder.schema.js
 const mongoose = require("mongoose");
 
 const activityOrderSchema = new mongoose.Schema(
@@ -10,9 +11,11 @@ const activityOrderSchema = new mongoose.Schema(
       required: true,
     },
 
-    scheduleId: {
+    // ✅ เพิ่มเพื่อเก็บ ActivitySlot ที่ใช้จริงในรอบนี้
+    activitySlotId: {
       type: mongoose.Schema.Types.ObjectId,
-      required: true,
+      ref: "ActivitySlot",
+      default: null,
     },
 
     userId: {
@@ -65,6 +68,16 @@ const activityOrderSchema = new mongoose.Schema(
       min: 0,
     },
 
+    discountCodeUsed: {
+      type: String,
+      default: "",
+    },
+
+    discountCodeAmount: {
+      type: Number,
+      default: 0,
+    },
+
     // ID ของโค้ดส่วนลดที่ใช้ (ถ้ามี)
     discountCodeId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -77,6 +90,25 @@ const activityOrderSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       default: null,
+    },
+
+    // affiliate code
+    affiliateCode: { type: String, default: "" },
+
+    affiliateRewardAmount: {
+      type: Number,
+      default: 0,
+    },
+
+    affiliateDiscountAmount: {
+      type: Number,
+      default: 0,
+    },
+
+    affiliateBudgetApplyMode: {
+      type: String,
+      enum: ["per_order", "per_person"],
+      default: "per_order",
     },
 
     // ช่องทางการชำระเงิน เช่น stripe
