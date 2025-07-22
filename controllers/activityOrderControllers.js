@@ -71,7 +71,6 @@ exports.webhookHandlerService = async (event) => {
       const activity = await Activity.findById(activityId);
       if (!activity) {
         console.error(`❌ Activity with ID ${activityId} not found.`);
-        // return res.status(400).send({ error: "Invalid activityId" });
         return {
           error: true,
           message: "Invalid activityId",
@@ -82,7 +81,6 @@ exports.webhookHandlerService = async (event) => {
       const slot = await ActivitySlot.findById(activitySlotId);
       if (!slot) {
         console.error(`❌ ActivitySlot with ID ${activitySlotId} not found.`);
-        // return res.status(400).send({ error: "Invalid activitySlotId" });
         return {
           error: true,
           message: "Invalid activitySlotId",
@@ -94,9 +92,6 @@ exports.webhookHandlerService = async (event) => {
         console.error(
           `❌ ActivitySlot ${activitySlotId} does not belong to Activity ${activityId}`
         );
-        // return res
-        //   .status(400)
-        //   .send({ error: "ActivitySlot does not belong to this Activity" });
         return {
           error: true,
           message: "ActivitySlot does not belong to this Activity",
@@ -238,7 +233,7 @@ exports.webhookHandler = async (req, res) => {
     const event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
 
     // สร้าง job และนำ job เข้าสู่ queue
-    const job = await webhookHandlerQueue.add('webhookHandler-job', event, workerOptions)
+    const job = await webhookHandlerQueue.add('webhookHandler-job', event, jobOptions)
 
     // รอผลลัพธ์จากการประมวลผลใน worker
     const response = await job.waitUntilFinished(webhookHandlerQueueEvent);
@@ -618,7 +613,6 @@ exports.createPaymentIntentService = async (request) => {
   } = request;
 
   if (!Array.isArray(items) || items.length === 0) {
-    // throw new Error("Missing items in request body"); 
     return {
       error: true,
       message: "Missing items in request body",
@@ -635,7 +629,6 @@ exports.createPaymentIntentService = async (request) => {
   } = items[0];
 
   if (!activityId || !scheduleId || !startDate) {
-    // throw new Error("activityId, scheduleId, and startDate are required");
     return {
       error: true,
       message: "activityId, scheduleId, and startDate are required",
@@ -645,7 +638,6 @@ exports.createPaymentIntentService = async (request) => {
 
   const activity = await Activity.findById(activityId);
   if (!activity) {
-    // throw new Error("Activity not found")
     return {
       error: true,
       message: "Activity not found",
@@ -655,7 +647,6 @@ exports.createPaymentIntentService = async (request) => {
 
   const slot = await ActivitySlot.findById(scheduleId);
   if (!slot) {
-    // throw new Error("Schedule (slot) not found")
     return {
       error: true,
       message: "Schedule (slot) not found",
@@ -664,7 +655,6 @@ exports.createPaymentIntentService = async (request) => {
   };
 
   if (slot.activityId.toString() !== activityId.toString()) {
-    // throw new Error("Schedule does not belong to the specified activity.");
     return {
       error: true,
       message: "Schedule does not belong to the specified activity.",
@@ -685,7 +675,6 @@ exports.createPaymentIntentService = async (request) => {
       code: new RegExp(`^${appliedDiscountCode}$`, "i"),
     });
     if (!discountDoc) {
-      // throw new Error("Invalid discount code provided.")
       return {
         error: true,
         message: "Invalid discount code provided.",
@@ -699,7 +688,6 @@ exports.createPaymentIntentService = async (request) => {
       now < discountDoc.validFrom ||
       now > discountDoc.validUntil
     ) {
-      // throw new Error("Discount code is not valid.");
       return {
         error: true,
         message: "Discount code is not valid..",
@@ -837,7 +825,7 @@ exports.createActivityPaymentIntent = async (req, res) => {
   try {
 
     // สร้าง job และนำ job เข้าสู่ queue
-    const job = await createPaymentIntentQueue.add('createPaymentIntent-job', req.body, workerOptions)
+    const job = await createPaymentIntentQueue.add('createPaymentIntent-job', req.body, jobOptions)
 
     // รอผลลัพธ์จากการประมวลผลใน worker
     const response = await job.waitUntilFinished(createPaymentIntentQueueEvent);

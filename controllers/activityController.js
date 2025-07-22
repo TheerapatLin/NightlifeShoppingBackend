@@ -421,7 +421,7 @@ exports.getAcivityById = async (req, res) => {
     const activityId = req.params.activityId;
 
     // สร้าง job และนำ job เข้าสู่ queue
-    const job = await queueGetAcivityById.add('getAcivityById-job', { activityId }, workerOptions)
+    const job = await queueGetAcivityById.add('getAcivityById-job', { activityId }, jobOptions)
 
     // รอผลลัพธ์จากการประมวลผลใน worker
     const response = await job.waitUntilFinished(queueGetAcivityByIdEvent);
