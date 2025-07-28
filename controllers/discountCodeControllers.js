@@ -17,66 +17,76 @@ exports.validateDiscountCode = async (req, res) => {
       code: { $regex: `^${code}$`, $options: "i" },
     });
 
-    if (!discountDoc) {
-      console.error(`Code ${code} not found.`);
-      return res
-        .status(404)
-        .json({ valid: false, message: `Code ${code} not found.` });
-    }
+    if (discountDoc) {
+      // ถ้าโค้ดนี้ต้อง sensitive แต่ตัวอักษรไม่ตรง
+      if (discountDoc.caseSensitive && discountDoc.code !== code) {
+        console.error(`Code ${code} case does not match.`);
+        return res
+          .status(404)
+          .json({ valid: false, message: `Code ${code} not found.` });
+      }
 
-    // ถ้าโค้ดนี้ต้อง sensitive แต่ตัวอักษรไม่ตรง
-    if (discountDoc.caseSensitive && discountDoc.code !== code) {
-      console.error(`Code ${code} case does not match.`);
-      return res
-        .status(404)
-        .json({ valid: false, message: `Code ${code} not found.` });
-    }
+      if (!discountDoc.isActive) {
+        return res
+          .status(400)
+          .json({ valid: false, message: "This code is not active." });
+      }
 
-    // ตรวจสอบว่าโค้ดเปิดใช้งานอยู่
-    if (!discountDoc.isActive) {
-      return res
-        .status(400)
-        .json({ valid: false, message: "This code is not active." });
-    }
-
-    if (discountDoc.loginNeed && !req.user) {
-      return res
-        .status(400)
-        .json({
+      if (discountDoc.loginNeed && !req.user) {
+        return res.status(400).json({
           valid: false,
           message: "Code found.\nBut please login before using this code.",
         });
+      }
+
+      const now = new Date();
+      if (now < discountDoc.validFrom || now > discountDoc.validUntil) {
+        return res
+          .status(400)
+          .json({ valid: false, message: "This code is expired." });
+      }
+
+      if (
+        discountDoc.usageLimit !== null &&
+        discountDoc.usedCount >= discountDoc.usageLimit
+      ) {
+        return res.status(400).json({
+          valid: false,
+          message: "Usage limit reached for this code.",
+        });
+      }
+
+      return res.status(200).json({
+        valid: true,
+        message: "Code is valid.",
+        discountType: discountDoc.discountType,
+        discountValue: discountDoc.discountValue,
+        combinable: discountDoc.combinable,
+        shortDescription: discountDoc.shortDescription,
+        description: discountDoc.description,
+        code: discountDoc.code,
+      });
     }
 
-    // ตรวจสอบวันหมดอายุ
-    const now = new Date();
-    if (now < discountDoc.validFrom || now > discountDoc.validUntil) {
-      return res
-        .status(400)
-        .json({ valid: false, message: "This code is expired." });
-    }
-
-    // ตรวจสอบ usageLimit
-    if (
-      discountDoc.usageLimit !== null &&
-      discountDoc.usedCount >= discountDoc.usageLimit
-    ) {
-      return res
-        .status(400)
-        .json({ valid: false, message: "Usage limit reached for this code." });
-    }
-
-    // ✅ Passed all checks
-    return res.status(200).json({
-      valid: true,
-      message: "Code is valid.",
-      discountType: discountDoc.discountType,
-      discountValue: discountDoc.discountValue,
-      combinable: discountDoc.combinable,
-      shortDescription: discountDoc.shortDescription,
-      description: discountDoc.description,
-      code: discountDoc.code,
+    // 🔻 ถ้าไม่เจอใน DiscountCode → หาใน User (affiliateCode)
+    const matchedAffiliateUser = await User.findOne({
+      affiliateCode: { $regex: `^${code}$`, $options: "i" },
     });
+
+    if (matchedAffiliateUser) {
+      return res.status(200).json({
+        valid: false,
+        isAffiliateCode: true,
+        affiliateCode: matchedAffiliateUser.affiliateCode,
+        affiliateUserId: matchedAffiliateUser._id.toString(),
+        message: "Affiliate code recognized.",
+      });
+    }
+
+    // ❌ ไม่เจอทั้งคู่
+    return res
+      .status(404)
+      .json({ valid: false, message: `Code ${code} not found.` });
   } catch (error) {
     console.error("❌ Error validating discount code:", error);
     return res
