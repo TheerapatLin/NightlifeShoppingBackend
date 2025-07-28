@@ -229,7 +229,9 @@ exports.createActivityPaymentIntent = async (req, res) => {
   if (!Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ error: "Missing items in request body" });
   }
-  console.log("📦 CODE FROM CLIENT =", appliedDiscountCode);
+
+  console.log("\ud83d\udce6 CODE FROM CLIENT =", appliedDiscountCode);
+
   const {
     activityId,
     scheduleId,
@@ -272,6 +274,9 @@ exports.createActivityPaymentIntent = async (req, res) => {
     let affiliateBudgetApplyMode =
       activity.affiliate?.budgetApplyMode || "per_order";
 
+    const totalValue = activity.affiliate?.totalValue || 0;
+    const defaultRewardValue = activity.affiliate?.rewardValue || 0;
+
     let matchedAffiliateUser = null;
     const affiliateRoles = [
       "affiliator",
@@ -288,7 +293,6 @@ exports.createActivityPaymentIntent = async (req, res) => {
       });
 
       if (!matchedAffiliateUser) {
-        // ไม่ใช่ affiliateCode ของใคร → ตรวจใน DiscountCode แทน
         discountDoc = await DiscountCode.findOne({
           code: new RegExp(`^${appliedDiscountCode}$`, "i"),
         });
@@ -306,7 +310,6 @@ exports.createActivityPaymentIntent = async (req, res) => {
           return res.status(400).json({ error: "Discount code is not valid." });
         }
 
-        // ตรวจสอบว่า code ใช้กับ activity นี้ได้ไหม (include/exclude)
         if (
           Array.isArray(discountDoc.eventIds) &&
           discountDoc.eventIdsInorExclude
@@ -325,7 +328,6 @@ exports.createActivityPaymentIntent = async (req, res) => {
           }
         }
 
-        // คำนวณส่วนลดตามประเภทของ discountCode
         let calculatedDiscount = 0;
         const multiplier = discountDoc.isPerOrder
           ? 1
@@ -347,7 +349,6 @@ exports.createActivityPaymentIntent = async (req, res) => {
         discountAmount = Math.min(calculatedDiscount, originalPrice);
         discountCodeId = discountDoc._id.toString();
       } else {
-        // เป็น affiliate code
         affiliateUserId = matchedAffiliateUser._id.toString();
         const setting = matchedAffiliateUser.affiliateSettings.find(
           (s) => s.activityId.toString() === activityId.toString() && s.enabled
@@ -356,15 +357,18 @@ exports.createActivityPaymentIntent = async (req, res) => {
           affiliatorReward = setting.affiliatorReward;
           affiliateDiscountAmount = setting.customerDiscount;
           affiliateBudgetApplyMode = setting.budgetApplyMode || "per_order";
-        } else if (totalValue && defaultRewardValue) {
+        } else if (
+          activity.affiliate?.enabled &&
+          totalValue &&
+          defaultRewardValue
+        ) {
           affiliatorReward = defaultRewardValue;
           affiliateDiscountAmount = totalValue - defaultRewardValue;
+          affiliateBudgetApplyMode =
+            activity.affiliate?.budgetApplyMode || "per_order";
         }
       }
     }
-
-    const totalValue = activity.affiliate?.totalValue || 0;
-    const defaultRewardValue = activity.affiliate?.rewardValue || 0;
 
     if (affiliateCode) {
       const affiliateUser = await User.findOne({ affiliateCode });
@@ -377,9 +381,15 @@ exports.createActivityPaymentIntent = async (req, res) => {
           affiliatorReward = setting.affiliatorReward;
           affiliateDiscountAmount = setting.customerDiscount;
           affiliateBudgetApplyMode = setting.budgetApplyMode || "per_order";
-        } else if (totalValue && defaultRewardValue) {
+        } else if (
+          activity.affiliate?.enabled &&
+          totalValue &&
+          defaultRewardValue
+        ) {
           affiliatorReward = defaultRewardValue;
           affiliateDiscountAmount = totalValue - defaultRewardValue;
+          affiliateBudgetApplyMode =
+            activity.affiliate?.budgetApplyMode || "per_order";
         }
       }
     }
@@ -414,7 +424,7 @@ exports.createActivityPaymentIntent = async (req, res) => {
             await stripe.paymentIntents.update(previousPaymentIntentId, {
               amount: amountInSatang,
               metadata: {
-                ...existingIntent.metadata, // <— preserve old data
+                ...existingIntent.metadata,
                 activityId,
                 scheduleId,
                 startDate,
@@ -440,7 +450,7 @@ exports.createActivityPaymentIntent = async (req, res) => {
               },
             });
             console.log(
-              `✅ Updated PaymentIntent amount: ${previousPaymentIntentId}`
+              `\u2705 Updated PaymentIntent amount: ${previousPaymentIntentId}`
             );
           }
           return res.send({
@@ -463,12 +473,12 @@ exports.createActivityPaymentIntent = async (req, res) => {
           });
         } else {
           console.log(
-            `⚠️ PaymentIntent status ${existingIntent.status} cannot be reused, creating new.`
+            `\u26a0\ufe0f PaymentIntent status ${existingIntent.status} cannot be reused, creating new.`
           );
         }
       } catch (err) {
         console.warn(
-          `⚠️ Could not retrieve previous PaymentIntent: ${err.message}`
+          `\u26a0\ufe0f Could not retrieve previous PaymentIntent: ${err.message}`
         );
       }
     }
@@ -519,7 +529,7 @@ exports.createActivityPaymentIntent = async (req, res) => {
         : undefined,
     });
   } catch (error) {
-    console.error("❌ Error creating payment intent:", error);
+    console.error("\u274c Error creating payment intent:", error);
     return res.status(500).json({ error: "Internal server error" });
   }
 };
