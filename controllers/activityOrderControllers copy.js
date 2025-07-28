@@ -266,102 +266,86 @@ exports.createActivityPaymentIntent = async (req, res) => {
     let discountAmount = 0;
     let discountCodeId = "";
     let discountDoc = null;
+
+    if (appliedDiscountCode) {
+      discountDoc = await DiscountCode.findOne({
+        code: new RegExp(`^${appliedDiscountCode}$`, "i"),
+      });
+      if (!discountDoc)
+        return res
+          .status(400)
+          .json({ error: "Invalid discount code provided." });
+      const now = new Date();
+      if (
+        !discountDoc.isActive ||
+        now < discountDoc.validFrom ||
+        now > discountDoc.validUntil
+      ) {
+        return res.status(400).json({ error: "Discount code is not valid." });
+      }
+
+      // 🧪 DEBUG LOG: ตรวจสอบก่อนเข้าเงื่อนไข include/exclude
+      console.log(
+        "🧪 Checking discountDoc.eventIdsInorExclude =",
+        discountDoc.eventIdsInorExclude
+      );
+      console.log("🧪 Current activityId =", activityId);
+      console.log(
+        "🧪 Discount eventIds =",
+        (discountDoc.eventIds || []).map((id) => id.toString())
+      );
+
+      // ✅ ตรวจสอบว่า code ใช้กับ activity นี้ได้ไหม
+      if (
+        Array.isArray(discountDoc.eventIds) &&
+        discountDoc.eventIdsInorExclude // ← ใช้ชื่อที่ถูกต้อง
+      ) {
+        const isMatch = discountDoc.eventIds.some(
+          (id) => id.toString() === activityId.toString()
+        );
+
+        if (
+          (discountDoc.eventIdsInorExclude === "include" && !isMatch) ||
+          (discountDoc.eventIdsInorExclude === "exclude" && isMatch)
+        ) {
+          console.log(
+            "❌ Discount code not valid for this activityId:",
+            activityId
+          );
+          return res
+            .status(400)
+            .json({ error: "This code cannot be used with this activity." });
+        }
+      }
+
+      let calculatedDiscount = 0;
+      const multiplier = discountDoc.isPerOrder
+        ? 1
+        : amountAdults + amountChildren;
+
+      if (discountDoc.discountType === "amount") {
+        calculatedDiscount = discountDoc.discountValue * multiplier;
+      } else if (discountDoc.discountType === "percent") {
+        const priceForCalc = discountDoc.isPerOrder
+          ? originalPrice
+          : adultPrice * amountAdults + childPrice * amountChildren;
+        calculatedDiscount = (priceForCalc * discountDoc.discountValue) / 100;
+      } else if (discountDoc.discountType === "fixed_price") {
+        // fixed_price → บอกว่าบิลนี้ราคาต้องลงมาเหลือเท่านี้
+        calculatedDiscount = originalPrice - discountDoc.discountValue;
+      } else if (discountDoc.discountType === "free") {
+        calculatedDiscount = originalPrice;
+      }
+
+      discountAmount = Math.min(calculatedDiscount, originalPrice);
+      discountCodeId = discountDoc._id.toString();
+    }
+
     let affiliateUserId = "";
     let affiliatorReward = 0;
     let affiliateDiscountAmount = 0;
     let affiliateBudgetApplyMode =
       activity.affiliate?.budgetApplyMode || "per_order";
-
-    let matchedAffiliateUser = null;
-    const affiliateRoles = [
-      "affiliator",
-      "host_affiliator",
-      "affiliator_host",
-      "admin",
-      "superadmin",
-    ];
-
-    if (appliedDiscountCode) {
-      matchedAffiliateUser = await User.findOne({
-        affiliateCode: appliedDiscountCode,
-        role: { $in: affiliateRoles },
-      });
-
-      if (!matchedAffiliateUser) {
-        // ไม่ใช่ affiliateCode ของใคร → ตรวจใน DiscountCode แทน
-        discountDoc = await DiscountCode.findOne({
-          code: new RegExp(`^${appliedDiscountCode}$`, "i"),
-        });
-        if (!discountDoc)
-          return res
-            .status(400)
-            .json({ error: "Invalid discount code provided." });
-
-        const now = new Date();
-        if (
-          !discountDoc.isActive ||
-          now < discountDoc.validFrom ||
-          now > discountDoc.validUntil
-        ) {
-          return res.status(400).json({ error: "Discount code is not valid." });
-        }
-
-        // ตรวจสอบว่า code ใช้กับ activity นี้ได้ไหม (include/exclude)
-        if (
-          Array.isArray(discountDoc.eventIds) &&
-          discountDoc.eventIdsInorExclude
-        ) {
-          const isMatch = discountDoc.eventIds.some(
-            (id) => id.toString() === activityId.toString()
-          );
-
-          if (
-            (discountDoc.eventIdsInorExclude === "include" && !isMatch) ||
-            (discountDoc.eventIdsInorExclude === "exclude" && isMatch)
-          ) {
-            return res.status(400).json({
-              error: "This code cannot be used with this activity.",
-            });
-          }
-        }
-
-        // คำนวณส่วนลดตามประเภทของ discountCode
-        let calculatedDiscount = 0;
-        const multiplier = discountDoc.isPerOrder
-          ? 1
-          : amountAdults + amountChildren;
-
-        if (discountDoc.discountType === "amount") {
-          calculatedDiscount = discountDoc.discountValue * multiplier;
-        } else if (discountDoc.discountType === "percent") {
-          const priceForCalc = discountDoc.isPerOrder
-            ? originalPrice
-            : adultPrice * amountAdults + childPrice * amountChildren;
-          calculatedDiscount = (priceForCalc * discountDoc.discountValue) / 100;
-        } else if (discountDoc.discountType === "fixed_price") {
-          calculatedDiscount = originalPrice - discountDoc.discountValue;
-        } else if (discountDoc.discountType === "free") {
-          calculatedDiscount = originalPrice;
-        }
-
-        discountAmount = Math.min(calculatedDiscount, originalPrice);
-        discountCodeId = discountDoc._id.toString();
-      } else {
-        // เป็น affiliate code
-        affiliateUserId = matchedAffiliateUser._id.toString();
-        const setting = matchedAffiliateUser.affiliateSettings.find(
-          (s) => s.activityId.toString() === activityId.toString() && s.enabled
-        );
-        if (setting) {
-          affiliatorReward = setting.affiliatorReward;
-          affiliateDiscountAmount = setting.customerDiscount;
-          affiliateBudgetApplyMode = setting.budgetApplyMode || "per_order";
-        } else if (totalValue && defaultRewardValue) {
-          affiliatorReward = defaultRewardValue;
-          affiliateDiscountAmount = totalValue - defaultRewardValue;
-        }
-      }
-    }
 
     const totalValue = activity.affiliate?.totalValue || 0;
     const defaultRewardValue = activity.affiliate?.rewardValue || 0;
@@ -425,12 +409,8 @@ exports.createActivityPaymentIntent = async (req, res) => {
                 adults: amountAdults,
                 children: amountChildren,
                 discountCodeId,
-                affiliateCode: matchedAffiliateUser
-                  ? matchedAffiliateUser.affiliateCode
-                  : affiliateCode || "",
-                affiliateUserId: matchedAffiliateUser
-                  ? matchedAffiliateUser._id.toString()
-                  : affiliateUserId,
+                affiliateCode: affiliateCode || "",
+                affiliateUserId,
                 affiliatorReward,
                 affiliateBudgetApplyMode,
                 appliedDiscountCode: appliedDiscountCode || "",
@@ -488,12 +468,8 @@ exports.createActivityPaymentIntent = async (req, res) => {
         adults: amountAdults,
         children: amountChildren,
         discountCodeId,
-        affiliateCode: matchedAffiliateUser
-          ? matchedAffiliateUser.affiliateCode
-          : affiliateCode || "",
-        affiliateUserId: matchedAffiliateUser
-          ? matchedAffiliateUser._id.toString()
-          : affiliateUserId,
+        affiliateCode: affiliateCode || "",
+        affiliateUserId,
         affiliatorReward,
         affiliateBudgetApplyMode,
         appliedDiscountCode: appliedDiscountCode || "",
