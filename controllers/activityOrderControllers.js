@@ -15,6 +15,14 @@ const crypto = require("crypto");
 const redis = require("../app");
 const { sendSetPasswordEmail } = require("../modules/email/email");
 
+const {
+  createPaymentIntentQueue,
+  createPaymentIntentQueueEvent,
+  webhookHandlerQueue,
+  webhookHandlerQueueEvent,
+  jobOptions
+} = require('../queues/producer')
+
 // generate affiliateCode แบบ 8 ตัว อังกฤษ+ตัวเลข
 const generateAffiliateCode = async (length = 8) => {
   const chars =
@@ -37,7 +45,194 @@ const DiscountCode = require("../schemas/v1/discountCode.schema");
 
 exports.webhookHandlerService = async (event) => {
   const stripe = getStripeInstance();
-  return "this is job webHandler"
+  switch (event.type) {
+    case "payment_intent.succeeded": {
+      const paymentIntent = event.data.object;
+      const metadata = paymentIntent.metadata || {};
+
+      const activityId = metadata.activityId;
+      const activitySlotId = metadata.scheduleId;
+      const startDate = metadata.startDate;
+      const originalPrice = parseFloat(metadata.originalPrice || "0");
+      const discountAmount = parseFloat(metadata.discountAmount || "0");
+      let paidAmount = paymentIntent.amount_received / 100;
+      if (paidAmount < 15) paidAmount = 15;
+
+      const adults = parseInt(metadata.adults || "1");
+      const children = parseInt(metadata.children || "0");
+      let discountCodeId = null;
+      if (
+        metadata.discountCodeId &&
+        mongoose.Types.ObjectId.isValid(metadata.discountCodeId)
+      ) {
+        discountCodeId = new mongoose.Types.ObjectId(metadata.discountCodeId);
+      }
+      const affiliateUserId = metadata.affiliateUserId || null;
+      const paymentMode = metadata.paymentMode || "test";
+
+      console.log("📦 Metadata received:", metadata);
+      console.log("✅ Validating Activity & ActivitySlot");
+
+      const activity = await Activity.findById(activityId);
+      if (!activity) {
+        console.error(`❌ Activity with ID ${activityId} not found.`);
+        // return res.status(400).send({ error: "Invalid activityId" });
+        return {
+          error: true,
+          message: "Invalid activityId.",
+          status: "400"
+        };
+      }
+
+      const slot = await ActivitySlot.findById(activitySlotId);
+      if (!slot) {
+        console.error(`❌ ActivitySlot with ID ${activitySlotId} not found.`);
+        // return res.status(400).send({ error: "Invalid activitySlotId" });
+        return {
+          error: true,
+          message: "Invalid activitySlotId.",
+          status: "400"
+        };
+      }
+
+      if (slot.activityId.toString() !== activityId.toString()) {
+        console.error(
+          `❌ ActivitySlot ${activitySlotId} does not belong to Activity ${activityId}`
+        );
+        // return res
+        //   .status(400)
+        //   .send({ error: "ActivitySlot does not belong to this Activity" });
+        return {
+          error: true,
+          message: "ActivitySlot does not belong to this Activity.",
+          status: "400"
+        };
+      }
+
+      console.log(`✅ ActivitySlot found: ${slot._id}`);
+
+      const charge = await stripe.charges.retrieve(
+        paymentIntent.latest_charge
+      );
+      const { name, email } = charge.billing_details;
+
+      let user = await User.findOne({ "user.email": email });
+      if (!user) {
+        const regularUserData = new RegularUserData({});
+        await regularUserData.save();
+
+        user = new User({
+          role: "user",
+          user: {
+            name: name || "Unknown User",
+            email,
+            activated: false,
+            verified: { email: false, phone: false },
+          },
+          businessId: "1",
+          userType: "regular",
+          userData: regularUserData._id,
+          userTypeData: "RegularUserData",
+          affiliateCode: await generateAffiliateCode(),
+        });
+
+        await user.save();
+        const resetToken = crypto.randomBytes(32).toString("hex");
+        redis.set(`${email}-setPasswordToken`, resetToken, "EX", 3600);
+        const setPasswordLink = `${process.env.BASE_URL}/api/v1/accounts/set-password?token=${resetToken}&email=${email}`;
+        await sendSetPasswordEmail(email, setPasswordLink);
+        console.log(`✅ User created and set-password email sent: ${email}`);
+      }
+
+      // ✅ Calculate affiliateRewardAmount & affiliateDiscountAmount
+      let affiliateRewardAmount = 0;
+      let affiliateDiscountAmount = 0;
+
+      if (affiliateUserId) {
+        const affiliateUser = await User.findById(affiliateUserId);
+        if (affiliateUser && affiliateUser.affiliateSettings) {
+          const setting = affiliateUser.affiliateSettings.find(
+            (s) =>
+              s.activityId.toString() === activityId.toString() && s.enabled
+          );
+          if (setting) {
+            affiliateRewardAmount = setting.affiliatorReward || 0;
+            affiliateDiscountAmount = setting.customerDiscount || 0;
+          } else if (activity.affiliate && activity.affiliate.enabled) {
+            affiliateRewardAmount = activity.affiliate.rewardValue || 0;
+            affiliateDiscountAmount =
+              (activity.affiliate.totalValue || 0) - affiliateRewardAmount;
+          }
+        } else if (activity.affiliate && activity.affiliate.enabled) {
+          affiliateRewardAmount = activity.affiliate.rewardValue || 0;
+          affiliateDiscountAmount =
+            (activity.affiliate.totalValue || 0) - affiliateRewardAmount;
+        }
+      }
+
+      const order = await Order.findOneAndUpdate(
+        { paymentIntentId: paymentIntent.id },
+        {
+          paymentIntentId: paymentIntent.id,
+          activityId,
+          activitySlotId: slot._id,
+          userId: user._id,
+          status: "paid",
+          bookingDate: new Date(startDate),
+          originalPrice,
+          discountAmount,
+          paidAmount,
+          adults,
+          children,
+          discountCodeId,
+          discountCodeUsed: metadata.appliedDiscountCode || "",
+          discountCodeAmount: parseFloat(metadata.discountAmount || "0"),
+          affiliateUserId,
+          affiliateCode: metadata.affiliateCode || "",
+          affiliateRewardAmount,
+          affiliateDiscountAmount,
+          paymentGateway: "stripe",
+          paymentMode,
+          paidAt: new Date(),
+          paymentMetadata: {
+            chargeId: paymentIntent.latest_charge,
+            method: charge.payment_method_details?.type,
+            receiptUrl: charge.receipt_url,
+            brand: charge.payment_method_details?.card?.brand,
+            last4: charge.payment_method_details?.card?.last4,
+          },
+        },
+        { upsert: true, new: true, runValidators: true }
+      );
+
+      console.log(`✅ Order saved successfully: ${order._id}`);
+
+      slot.participants.push({
+        userId: user._id,
+        name: user.user.name,
+        profileImage: user.user.profileImage || "",
+        paymentStatus: "paid",
+        attendanceStatus: "joined",
+        joinRequestTime: new Date(),
+        adults,
+        children,
+      });
+      await slot.save();
+
+      console.log(
+        `✅ Participant added for user ${user._id} with ${adults} adults and ${children} children.`
+      );
+
+      break;
+    }
+
+    case "payment_intent.payment_failed":
+      console.log("❌ Payment Failed");
+      break;
+
+    default:
+      console.log(`⚠️ Unhandled event type: ${event.type}`);
+  }
 
 }
 
@@ -49,186 +244,17 @@ exports.webhookHandler = async (req, res) => {
   try {
     const event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
 
-    switch (event.type) {
-      case "payment_intent.succeeded": {
-        const paymentIntent = event.data.object;
-        const metadata = paymentIntent.metadata || {};
-
-        const activityId = metadata.activityId;
-        const activitySlotId = metadata.scheduleId;
-        const startDate = metadata.startDate;
-        const originalPrice = parseFloat(metadata.originalPrice || "0");
-        const discountAmount = parseFloat(metadata.discountAmount || "0");
-        let paidAmount = paymentIntent.amount_received / 100;
-        if (paidAmount < 15) paidAmount = 15;
-
-        const adults = parseInt(metadata.adults || "1");
-        const children = parseInt(metadata.children || "0");
-        let discountCodeId = null;
-        if (
-          metadata.discountCodeId &&
-          mongoose.Types.ObjectId.isValid(metadata.discountCodeId)
-        ) {
-          discountCodeId = new mongoose.Types.ObjectId(metadata.discountCodeId);
-        }
-        const affiliateUserId = metadata.affiliateUserId || null;
-        const paymentMode = metadata.paymentMode || "test";
-
-        console.log("📦 Metadata received:", metadata);
-        console.log("✅ Validating Activity & ActivitySlot");
-
-        const activity = await Activity.findById(activityId);
-        if (!activity) {
-          console.error(`❌ Activity with ID ${activityId} not found.`);
-          return res.status(400).send({ error: "Invalid activityId" });
-        }
-
-        const slot = await ActivitySlot.findById(activitySlotId);
-        if (!slot) {
-          console.error(`❌ ActivitySlot with ID ${activitySlotId} not found.`);
-          return res.status(400).send({ error: "Invalid activitySlotId" });
-        }
-
-        if (slot.activityId.toString() !== activityId.toString()) {
-          console.error(
-            `❌ ActivitySlot ${activitySlotId} does not belong to Activity ${activityId}`
-          );
-          return res
-            .status(400)
-            .send({ error: "ActivitySlot does not belong to this Activity" });
-        }
-
-        console.log(`✅ ActivitySlot found: ${slot._id}`);
-
-        const charge = await stripe.charges.retrieve(
-          paymentIntent.latest_charge
-        );
-        const { name, email } = charge.billing_details;
-
-        let user = await User.findOne({ "user.email": email });
-        if (!user) {
-          const regularUserData = new RegularUserData({});
-          await regularUserData.save();
-
-          user = new User({
-            role: "user",
-            user: {
-              name: name || "Unknown User",
-              email,
-              activated: false,
-              verified: { email: false, phone: false },
-            },
-            businessId: "1",
-            userType: "regular",
-            userData: regularUserData._id,
-            userTypeData: "RegularUserData",
-            affiliateCode: await generateAffiliateCode(),
-          });
-
-          await user.save();
-          const resetToken = crypto.randomBytes(32).toString("hex");
-          redis.set(`${email}-setPasswordToken`, resetToken, "EX", 3600);
-          const setPasswordLink = `${process.env.BASE_URL}/api/v1/accounts/set-password?token=${resetToken}&email=${email}`;
-          await sendSetPasswordEmail(email, setPasswordLink);
-          console.log(`✅ User created and set-password email sent: ${email}`);
-        }
-
-        // ✅ Calculate affiliateRewardAmount & affiliateDiscountAmount
-        let affiliateRewardAmount = 0;
-        let affiliateDiscountAmount = 0;
-
-        if (affiliateUserId) {
-          const affiliateUser = await User.findById(affiliateUserId);
-          if (affiliateUser && affiliateUser.affiliateSettings) {
-            const setting = affiliateUser.affiliateSettings.find(
-              (s) =>
-                s.activityId.toString() === activityId.toString() && s.enabled
-            );
-            if (setting) {
-              affiliateRewardAmount = setting.affiliatorReward || 0;
-              affiliateDiscountAmount = setting.customerDiscount || 0;
-            } else if (activity.affiliate && activity.affiliate.enabled) {
-              affiliateRewardAmount = activity.affiliate.rewardValue || 0;
-              affiliateDiscountAmount =
-                (activity.affiliate.totalValue || 0) - affiliateRewardAmount;
-            }
-          } else if (activity.affiliate && activity.affiliate.enabled) {
-            affiliateRewardAmount = activity.affiliate.rewardValue || 0;
-            affiliateDiscountAmount =
-              (activity.affiliate.totalValue || 0) - affiliateRewardAmount;
-          }
-        }
-
-        const order = await Order.findOneAndUpdate(
-          { paymentIntentId: paymentIntent.id },
-          {
-            paymentIntentId: paymentIntent.id,
-            activityId,
-            activitySlotId: slot._id,
-            userId: user._id,
-            status: "paid",
-            bookingDate: new Date(startDate),
-            originalPrice,
-            discountAmount,
-            paidAmount,
-            adults,
-            children,
-            discountCodeId,
-            discountCodeUsed: metadata.appliedDiscountCode || "",
-            discountCodeAmount: parseFloat(metadata.discountAmount || "0"),
-            affiliateUserId,
-            affiliateCode: metadata.affiliateCode || "",
-            affiliateRewardAmount,
-            affiliateDiscountAmount,
-            paymentGateway: "stripe",
-            paymentMode,
-            paidAt: new Date(),
-            paymentMetadata: {
-              chargeId: paymentIntent.latest_charge,
-              method: charge.payment_method_details?.type,
-              receiptUrl: charge.receipt_url,
-              brand: charge.payment_method_details?.card?.brand,
-              last4: charge.payment_method_details?.card?.last4,
-            },
-          },
-          { upsert: true, new: true, runValidators: true }
-        );
-
-        console.log(`✅ Order saved successfully: ${order._id}`);
-
-        slot.participants.push({
-          userId: user._id,
-          name: user.user.name,
-          profileImage: user.user.profileImage || "",
-          paymentStatus: "paid",
-          attendanceStatus: "joined",
-          joinRequestTime: new Date(),
-          adults,
-          children,
-        });
-        await slot.save();
-
-        console.log(
-          `✅ Participant added for user ${user._id} with ${adults} adults and ${children} children.`
-        );
-
-        break;
-      }
-
-      case "payment_intent.payment_failed":
-        console.log("❌ Payment Failed");
-        break;
-
-      default:
-        console.log(`⚠️ Unhandled event type: ${event.type}`);
-    }
-
     // สร้าง job และนำ job เข้าสู่ queue
     const job = await webhookHandlerQueue.add('webhookHandler-job', event, jobOptions)
 
     // รอผลลัพธ์จากการประมวลผลใน worker
     const response = await job.waitUntilFinished(webhookHandlerQueueEvent);
-    console.log("response webhookHandler => ", response)
+    // console.log("response webhookHandler => ", response)
+
+    if (!response) {
+      console.warn("⚠️ No response returned from webhook worker.");
+      return res.status(200).json({ message: "No response, event skipped" });
+    }
 
     // if error
     switch (response.status) {
@@ -245,13 +271,17 @@ exports.webhookHandler = async (req, res) => {
   }
 };
 
-exports.createActivityPaymentIntent = async (req, res) => {
+exports.createPaymentIntentService = async (request) => {
   const stripe = getStripeInstance();
   const { items, affiliateCode, appliedDiscountCode, previousPaymentIntentId } =
-    req.body;
+    request
 
   if (!Array.isArray(items) || items.length === 0) {
-    return res.status(400).json({ error: "Missing items in request body" });
+    return {
+      error: true,
+      message: "Missing items in request body",
+      status: "400"
+    };
   }
 
   console.log("\ud83d\udce6 CODE FROM CLIENT =", appliedDiscountCode);
@@ -265,23 +295,37 @@ exports.createActivityPaymentIntent = async (req, res) => {
   } = items[0];
 
   if (!activityId || !scheduleId || !startDate) {
-    return res
-      .status(400)
-      .json({ error: "activityId, scheduleId, and startDate are required" });
+    return {
+      error: true,
+      message: "activityId, scheduleId, and startDate are required.",
+      status: "400"
+    };
   }
 
   try {
     const activity = await Activity.findById(activityId);
-    if (!activity) return res.status(404).json({ error: "Activity not found" });
+    if (!activity) {
+      return {
+        error: true,
+        message: "Activity not found.",
+        status: "404"
+      };
+    };
 
     const slot = await ActivitySlot.findById(scheduleId);
     if (!slot)
-      return res.status(404).json({ error: "Schedule (slot) not found" });
+      return {
+        error: true,
+        message: "Schedule (slot) not found.",
+        status: "404"
+      };
 
     if (slot.activityId.toString() !== activityId.toString()) {
-      return res
-        .status(400)
-        .json({ error: "Schedule does not belong to the specified activity." });
+      return {
+        error: true,
+        message: "Schedule does not belong to the specified activity.",
+        status: "400"
+      };
     }
 
     const adultPrice = slot.priceAdult || activity.priceAdult || slot.cost || 0;
@@ -321,9 +365,11 @@ exports.createActivityPaymentIntent = async (req, res) => {
           code: new RegExp(`^${appliedDiscountCode}$`, "i"),
         });
         if (!discountDoc)
-          return res
-            .status(400)
-            .json({ error: "Invalid discount code provided." });
+          return {
+            error: true,
+            message: "Invalid discount code provided.",
+            status: "400"
+          };
 
         const now = new Date();
         if (
@@ -331,7 +377,11 @@ exports.createActivityPaymentIntent = async (req, res) => {
           now < discountDoc.validFrom ||
           now > discountDoc.validUntil
         ) {
-          return res.status(400).json({ error: "Discount code is not valid." });
+          return {
+            error: true,
+            message: "Discount code is not valid.",
+            status: "400"
+          };
         }
 
         if (
@@ -346,9 +396,11 @@ exports.createActivityPaymentIntent = async (req, res) => {
             (discountDoc.eventIdsInorExclude === "include" && !isMatch) ||
             (discountDoc.eventIdsInorExclude === "exclude" && isMatch)
           ) {
-            return res.status(400).json({
-              error: "This code cannot be used with this activity.",
-            });
+            return {
+              error: true,
+              message: "This code cannot be used with this activity.",
+              status: "400"
+            };
           }
         }
 
@@ -423,9 +475,11 @@ exports.createActivityPaymentIntent = async (req, res) => {
     const amountInSatang = Math.round(paidAmount * 100);
 
     if (amountInSatang < 1000) {
-      return res.status(400).json({
-        error: "Total payable amount must be at least 10 THB.",
-      });
+      return {
+        error: true,
+        message: "Total payable amount must be at least 10 THB.",
+        status: "400"
+      };
     }
 
     if (affiliateBudgetApplyMode === "per_person") {
@@ -477,7 +531,7 @@ exports.createActivityPaymentIntent = async (req, res) => {
               `\u2705 Updated PaymentIntent amount: ${previousPaymentIntentId}`
             );
           }
-          return res.send({
+          return {
             clientSecret: existingIntent.client_secret,
             originalPrice,
             paidAmount,
@@ -494,7 +548,7 @@ exports.createActivityPaymentIntent = async (req, res) => {
             discountCodeShortDescriptions: discountDoc
               ? discountDoc.shortDescription
               : undefined,
-          });
+          };
         } else {
           console.log(
             `\u26a0\ufe0f PaymentIntent status ${existingIntent.status} cannot be reused, creating new.`
@@ -536,7 +590,7 @@ exports.createActivityPaymentIntent = async (req, res) => {
       },
     });
 
-    return res.send({
+    return {
       clientSecret: paymentIntent.client_secret,
       originalPrice,
       paidAmount,
@@ -551,11 +605,35 @@ exports.createActivityPaymentIntent = async (req, res) => {
       discountCodeShortDescriptions: discountDoc
         ? discountDoc.shortDescription
         : undefined,
-    });
+    };
   } catch (error) {
     console.error("\u274c Error creating payment intent:", error);
-    return res.status(500).json({ error: "Internal server error" });
+    return {
+      error: true,
+      message: "Internal server error.",
+      status: "500"
+    };
   }
+}
+
+exports.createActivityPaymentIntent = async (req, res) => {
+
+  // สร้าง job และนำ job เข้าสู่ queue
+  const job = await createPaymentIntentQueue.add('createPaymentIntent-job', req.body, jobOptions)
+
+  // รอผลลัพธ์จากการประมวลผลใน worker
+  const response = await job.waitUntilFinished(createPaymentIntentQueueEvent);
+
+  // if error
+  switch (response.status) {
+    case "400":
+      return res.status(400).json({ message: response.message });
+    case "404":
+      return res.status(404).json({ message: response.message });
+  }
+
+  return res.status(200).json(response)
+
 };
 
 exports.getAllActivityOrders = async (req, res) => {

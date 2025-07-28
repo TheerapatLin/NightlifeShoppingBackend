@@ -43,6 +43,16 @@ const getAcivityByIdWorker = new Worker('getAcivityById-queue', async job => {  
 const createPaymentIntentQueue = new Queue('createPaymentIntent-queue', { connection })
 const createPaymentIntentQueueEvent = new QueueEvents('createPaymentIntent-queue', { connection })
 
+// check job status
+// --------------------------------------------- STATUS QUEUE EVENT --------------------------------------------- //
+createPaymentIntentQueueEvent.on('completed', (job) => {
+  console.log(`✅ Producer : webhookHandler => Job ${job} completed!!`)
+})
+
+createPaymentIntentQueueEvent.on('failed', ({ job, failedReason }) => {
+  console.log(`❌ Producer : webhookHandler => Job ${job} failed: ${failedReason}`)
+})
+
 // --------------------------------------------- createPaymentIntent Worker --------------------------------------------- //
 const createPaymentIntentWorker = new Worker('createPaymentIntent-queue', async job => {
   const {createPaymentIntentService} = require('../controllers/activityOrderControllers')
