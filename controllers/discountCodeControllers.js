@@ -136,12 +136,25 @@ exports.getDiscountCodeById = async (req, res) => {
 };
 
 // POST: /api/v1/discount-code
+// POST: /api/v1/discount-code
 exports.createDiscountCode = async (req, res) => {
   if (ensureSuperadmin(req, res)) return;
 
   try {
     const codeData = req.body;
     codeData.createdBy = req.user.userId;
+
+    // ✅ ตรวจว่าโค้ดนี้ซ้ำกับที่มีอยู่แล้วแบบ case-insensitive
+    const existing = await DiscountCode.findOne({
+      code: { $regex: `^${codeData.code}$`, $options: "i" },
+    });
+
+    if (existing) {
+      return res.status(400).json({
+        success: false,
+        message: `Code "${codeData.code}" already exists (case-insensitive).`,
+      });
+    }
 
     const newCode = await DiscountCode.create(codeData);
     res.status(201).json({ success: true, code: newCode });
