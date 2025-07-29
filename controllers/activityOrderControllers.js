@@ -76,7 +76,6 @@ exports.webhookHandlerService = async (event) => {
       const activity = await Activity.findById(activityId);
       if (!activity) {
         console.error(`❌ Activity with ID ${activityId} not found.`);
-        // return res.status(400).send({ error: "Invalid activityId" });
         return {
           error: true,
           message: "Invalid activityId.",
@@ -87,7 +86,6 @@ exports.webhookHandlerService = async (event) => {
       const slot = await ActivitySlot.findById(activitySlotId);
       if (!slot) {
         console.error(`❌ ActivitySlot with ID ${activitySlotId} not found.`);
-        // return res.status(400).send({ error: "Invalid activitySlotId" });
         return {
           error: true,
           message: "Invalid activitySlotId.",
@@ -99,9 +97,6 @@ exports.webhookHandlerService = async (event) => {
         console.error(
           `❌ ActivitySlot ${activitySlotId} does not belong to Activity ${activityId}`
         );
-        // return res
-        //   .status(400)
-        //   .send({ error: "ActivitySlot does not belong to this Activity" });
         return {
           error: true,
           message: "ActivitySlot does not belong to this Activity.",
@@ -249,7 +244,6 @@ exports.webhookHandler = async (req, res) => {
 
     // รอผลลัพธ์จากการประมวลผลใน worker
     const response = await job.waitUntilFinished(webhookHandlerQueueEvent);
-    // console.log("response webhookHandler => ", response)
 
     if (!response) {
       console.warn("⚠️ No response returned from webhook worker.");

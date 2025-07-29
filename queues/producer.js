@@ -18,40 +18,9 @@ const jobOptions = {
   }
 }
 
-// create producer
-// ------------------------------- getActivityById Queue ------------------------------- //
-const queueGetAcivityById = new Queue('getAcivityById-queue', { connection })
-const queueGetAcivityByIdEvent = new QueueEvents('getAcivityById-queue', { connection })
-
-// --------------------------------------------- getAcivityById Worker --------------------------------------------- //
-const getAcivityByIdWorker = new Worker('getAcivityById-queue', async job => {  // สร้าง worker ของ getAcivityById
-  const {
-    getActivityByIdService
-  } = require("../controllers/activityController");
-
-  const { activityId } = job.data;
-  // console.log(`Worker => Processing job ${job.id} with data : ${job.name}`) // ดู status ของ worker
-  const result = await getActivityByIdService(activityId) // ส่งคิวไปประมวลผล
-  return result
-}, {
-  connection,             // เชื่อมต่อ ioredis
-  jobOptions
-})
-
-
 // ------------------------------- createPaymentIntent Queue ------------------------------- //
 const createPaymentIntentQueue = new Queue('createPaymentIntent-queue', { connection })
 const createPaymentIntentQueueEvent = new QueueEvents('createPaymentIntent-queue', { connection })
-
-// check job status
-// --------------------------------------------- STATUS QUEUE EVENT --------------------------------------------- //
-createPaymentIntentQueueEvent.on('completed', (job) => {
-  console.log(`✅ Producer : webhookHandler => Job ${job} completed!!`)
-})
-
-createPaymentIntentQueueEvent.on('failed', ({ job, failedReason }) => {
-  console.log(`❌ Producer : webhookHandler => Job ${job} failed: ${failedReason}`)
-})
 
 // --------------------------------------------- createPaymentIntent Worker --------------------------------------------- //
 const createPaymentIntentWorker = new Worker('createPaymentIntent-queue', async job => {
@@ -106,8 +75,6 @@ const webhookHandlerWorker = new Worker('webhookHandler-queue', async job => {
 
 
 module.exports = {
-  queueGetAcivityById,
-  queueGetAcivityByIdEvent,
   createPaymentIntentQueue,
   createPaymentIntentQueueEvent,
   webhookHandlerQueue,
