@@ -95,6 +95,97 @@ exports.validateDiscountCode = async (req, res) => {
   }
 };
 
+exports.validateCodeWithEmail = async (req, res) => {
+  try {
+    const { code, email } = req.body;
+
+    if (!code || !email) {
+      return res
+        .status(400)
+        .json({ valid: false, message: "Code and email are required." });
+    }
+
+    const discountDoc = await DiscountCode.findOne({
+      code: { $regex: `^${code}$`, $options: "i" },
+    });
+
+    if (!discountDoc) {
+      return res.status(404).json({ valid: false, message: "Code not found." });
+    }
+
+    if (discountDoc.caseSensitive && discountDoc.code !== code) {
+      return res
+        .status(404)
+        .json({ valid: false, message: `Code ${code} not found.` });
+    }
+
+    if (!discountDoc.isActive) {
+      return res
+        .status(400)
+        .json({ valid: false, message: "This code is not active." });
+    }
+
+    const now = new Date();
+    if (now < discountDoc.validFrom || now > discountDoc.validUntil) {
+      return res
+        .status(400)
+        .json({ valid: false, message: "This code is expired." });
+    }
+
+    if (
+      discountDoc.usageLimit !== null &&
+      discountDoc.usedCount >= discountDoc.usageLimit
+    ) {
+      return res
+        .status(400)
+        .json({ valid: false, message: "Usage limit reached." });
+    }
+
+    // ✅ ตรวจสิทธิ์อีเมล
+    const mode = discountDoc.userRestrictionMode || "all";
+    const emailLower = email.toLowerCase();
+
+    if (mode === "include") {
+      const allowed = (discountDoc.allowedUserEmails || []).map((e) =>
+        e.toLowerCase()
+      );
+      if (!allowed.includes(emailLower)) {
+        return res.status(403).json({
+          valid: false,
+          message: "This email is not allowed for this code.",
+        });
+      }
+    }
+
+    if (mode === "exclude") {
+      const blocked = (discountDoc.blockedUserEmails || []).map((e) =>
+        e.toLowerCase()
+      );
+      if (blocked.includes(emailLower)) {
+        return res.status(403).json({
+          valid: false,
+          message: "This email is excluded from using this code.",
+        });
+      }
+    }
+
+    return res.status(200).json({
+      valid: true,
+      discountType: discountDoc.discountType,
+      discountValue: discountDoc.discountValue,
+      combinable: discountDoc.combinable,
+      shortDescription: discountDoc.shortDescription,
+      description: discountDoc.description,
+      code: discountDoc.code,
+    });
+  } catch (err) {
+    console.error("validateCodeWithEmail error:", err);
+    return res
+      .status(500)
+      .json({ valid: false, message: "Internal server error." });
+  }
+};
+
 // ✅ ตรวจว่า superadmin เท่านั้น
 function ensureSuperadmin(req, res) {
   if (req.user?.role !== "superadmin") {
@@ -135,7 +226,6 @@ exports.getDiscountCodeById = async (req, res) => {
   }
 };
 
-// POST: /api/v1/discount-code
 // POST: /api/v1/discount-code
 exports.createDiscountCode = async (req, res) => {
   if (ensureSuperadmin(req, res)) return;

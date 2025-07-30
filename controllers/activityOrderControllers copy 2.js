@@ -223,22 +223,14 @@ exports.webhookHandler = async (req, res) => {
 
 exports.createActivityPaymentIntent = async (req, res) => {
   const stripe = getStripeInstance();
-  const {
-    items,
-    affiliateCode,
-    appliedDiscountCode,
-    previousPaymentIntentId,
-    userEmail, // ✅ เพิ่มตรงนี้
-  } = req.body;
-  console.log("🎯 Incoming userEmail from frontend:", userEmail);
-  console.log(
-    "🎯 Incoming appliedDiscountCode from frontend:",
-    appliedDiscountCode
-  );
+  const { items, affiliateCode, appliedDiscountCode, previousPaymentIntentId } =
+    req.body;
 
   if (!Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ error: "Missing items in request body" });
   }
+
+  console.log("\ud83d\udce6 CODE FROM CLIENT =", appliedDiscountCode);
 
   const {
     activityId,
@@ -304,7 +296,6 @@ exports.createActivityPaymentIntent = async (req, res) => {
         discountDoc = await DiscountCode.findOne({
           code: new RegExp(`^${appliedDiscountCode}$`, "i"),
         });
-        console.log("🔍 Found discountDoc:", discountDoc);
         if (!discountDoc)
           return res
             .status(400)
@@ -317,36 +308,6 @@ exports.createActivityPaymentIntent = async (req, res) => {
           now > discountDoc.validUntil
         ) {
           return res.status(400).json({ error: "Discount code is not valid." });
-        }
-
-        // ✅ ตรวจอีเมลตาม restriction type
-        const lowerEmail = (userEmail || "").toLowerCase();
-        console.log("🔒 userRestrictionMode:", discountDoc.userRestrictionMode);
-        console.log("✅ Email to check:", lowerEmail);
-        console.log("📛 Allowed emails:", discountDoc.allowedUserEmails);
-        console.log("🚫 Blocked emails:", discountDoc.blockedUserEmails);
-        if (discountDoc.userRestrictionMode === "include") {
-          if (
-            !Array.isArray(discountDoc.allowedUserEmails) ||
-            !discountDoc.allowedUserEmails
-              .map((e) => e.toLowerCase())
-              .includes(lowerEmail)
-          ) {
-            return res.status(400).json({
-              error: "This discount code is not available for your email. Please enter the correct emails before using code.",
-            });
-          }
-        } else if (discountDoc.userRestrictionMode === "exclude") {
-          if (
-            Array.isArray(discountDoc.blockedUserEmails) &&
-            discountDoc.blockedUserEmails
-              .map((e) => e.toLowerCase())
-              .includes(lowerEmail)
-          ) {
-            return res.status(400).json({
-              error: "This discount code cannot be used with your email.",
-            });
-          }
         }
 
         if (
@@ -488,6 +449,9 @@ exports.createActivityPaymentIntent = async (req, res) => {
                   process.env.STRIPE_MODE === "live" ? "live" : "test",
               },
             });
+            console.log(
+              `\u2705 Updated PaymentIntent amount: ${previousPaymentIntentId}`
+            );
           }
           return res.send({
             clientSecret: existingIntent.client_secret,
@@ -507,10 +471,14 @@ exports.createActivityPaymentIntent = async (req, res) => {
               ? discountDoc.shortDescription
               : undefined,
           });
+        } else {
+          console.log(
+            `\u26a0\ufe0f PaymentIntent status ${existingIntent.status} cannot be reused, creating new.`
+          );
         }
       } catch (err) {
         console.warn(
-          `⚠️ Could not retrieve previous PaymentIntent: ${err.message}`
+          `\u26a0\ufe0f Could not retrieve previous PaymentIntent: ${err.message}`
         );
       }
     }
@@ -561,7 +529,7 @@ exports.createActivityPaymentIntent = async (req, res) => {
         : undefined,
     });
   } catch (error) {
-    console.error("❌ Error creating payment intent:", error);
+    console.error("\u274c Error creating payment intent:", error);
     return res.status(500).json({ error: "Internal server error" });
   }
 };

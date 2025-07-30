@@ -8,6 +8,7 @@ const {
   createDiscountCode,
   updateDiscountCode,
   deleteDiscountCode,
+  validateCodeWithEmail
 } = require("../../controllers/discountCodeControllers");
 const {
   verifyAccessToken,
@@ -19,6 +20,9 @@ const {
 
 // POST /api/v1/discount-code/validate
 router.post("/validate", validateDiscountCode);
+
+// POST: /api/v1/discount-code/validate-before-payment
+router.post("/validate-before-payment", validateCodeWithEmail);
 
 /** ✅ CRUD เฉพาะ superadmin */
 router.get("/", [verifyAccessTokenWeb, authRoles(["superadmin"])], getAllDiscountCodes);
