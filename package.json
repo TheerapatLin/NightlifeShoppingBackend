@@ -27,6 +27,7 @@
     "google-auth-library": "^9.2.0",
     "http-errors": "^2.0.0",
     "jsonwebtoken": "^9.0.1",
+    "moment-timezone": "^0.6.0",
     "mongoose": "^8.0.0",
     "mongoose-unique-validator": "^5.0.0",
     "morgan": "~1.10.0",

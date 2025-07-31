@@ -14,6 +14,8 @@ const ActivitySlot = require("../schemas/v1/activitySlot.schema");
 const crypto = require("crypto");
 const redis = require("../app");
 const { sendSetPasswordEmail } = require("../modules/email/email");
+const sendEmail = require("../modules/email/sendVerifyEmail");
+const sendOrderBookedEmail = require("../modules/email/sendOrderBookedEmail");
 
 const {
   createPaymentIntentQueue,
@@ -41,8 +43,7 @@ const generateAffiliateCode = async (length = 8) => {
 const DiscountCode = require("../schemas/v1/discountCode.schema");
 
 
-// --------------------------------------------- webhookHandler--------------------------------------------- //
-
+// --------------------------------------------- webhookHandler QM --------------------------------------------- //
 exports.webhookHandlerService = async (event) => {
   const stripe = getStripeInstance();
   switch (event.type) {
@@ -213,6 +214,7 @@ exports.webhookHandlerService = async (event) => {
         children,
       });
       await slot.save();
+      await sendOrderBookedEmail(order, user, activity, slot);
 
       console.log(
         `✅ Participant added for user ${user._id} with ${adults} adults and ${children} children.`
@@ -228,9 +230,9 @@ exports.webhookHandlerService = async (event) => {
     default:
       console.log(`⚠️ Unhandled event type: ${event.type}`);
   }
-
 }
 
+//เมื่อสถานะการจ่ายถูกส่งกลับมาจาก Stripe
 exports.webhookHandler = async (req, res) => {
   const stripe = getStripeInstance();
   const endpointSecret = getEndpointSecret();
@@ -246,7 +248,7 @@ exports.webhookHandler = async (req, res) => {
     const response = await job.waitUntilFinished(webhookHandlerQueueEvent);
 
     if (!response) {
-      console.warn("⚠️ No response returned from webhook worker.");
+      console.log("⚠️ No response returned from webhook worker.");
       return res.status(200).json({ message: "No response, event skipped" });
     }
 
@@ -265,10 +267,21 @@ exports.webhookHandler = async (req, res) => {
   }
 };
 
+// --------------------------------------------- createPaymentIntent QM --------------------------------------------- //
 exports.createPaymentIntentService = async (request) => {
   const stripe = getStripeInstance();
-  const { items, affiliateCode, appliedDiscountCode, previousPaymentIntentId } =
-    request
+  const {
+    items,
+    affiliateCode,
+    appliedDiscountCode,
+    previousPaymentIntentId,
+    userEmail, // ✅ เพิ่มตรงนี้
+  } = request;
+  console.log("🎯 Incoming userEmail from frontend:", userEmail);
+  console.log(
+    "🎯 Incoming appliedDiscountCode from frontend:",
+    appliedDiscountCode
+  );
 
   if (!Array.isArray(items) || items.length === 0) {
     return {
@@ -277,8 +290,6 @@ exports.createPaymentIntentService = async (request) => {
       status: "400"
     };
   }
-
-  console.log("\ud83d\udce6 CODE FROM CLIENT =", appliedDiscountCode);
 
   const {
     activityId,
@@ -304,7 +315,7 @@ exports.createPaymentIntentService = async (request) => {
         message: "Activity not found.",
         status: "404"
       };
-    };
+    }
 
     const slot = await ActivitySlot.findById(scheduleId);
     if (!slot)
@@ -358,6 +369,7 @@ exports.createPaymentIntentService = async (request) => {
         discountDoc = await DiscountCode.findOne({
           code: new RegExp(`^${appliedDiscountCode}$`, "i"),
         });
+        console.log("🔍 Found discountDoc:", discountDoc);
         if (!discountDoc)
           return {
             error: true,
@@ -376,6 +388,40 @@ exports.createPaymentIntentService = async (request) => {
             message: "Discount code is not valid.",
             status: "400"
           };
+        }
+
+        // ✅ ตรวจอีเมลตาม restriction type
+        const lowerEmail = (userEmail || "").toLowerCase();
+        console.log("🔒 userRestrictionMode:", discountDoc.userRestrictionMode);
+        console.log("✅ Email to check:", lowerEmail);
+        console.log("📛 Allowed emails:", discountDoc.allowedUserEmails);
+        console.log("🚫 Blocked emails:", discountDoc.blockedUserEmails);
+        if (discountDoc.userRestrictionMode === "include") {
+          if (
+            !Array.isArray(discountDoc.allowedUserEmails) ||
+            !discountDoc.allowedUserEmails
+              .map((e) => e.toLowerCase())
+              .includes(lowerEmail)
+          ) {
+            return {
+              error: true,
+              message: "This discount code is not available for your email. Please enter the correct emails before using code.",
+              status: "400"
+            };
+          }
+        } else if (discountDoc.userRestrictionMode === "exclude") {
+          if (
+            Array.isArray(discountDoc.blockedUserEmails) &&
+            discountDoc.blockedUserEmails
+              .map((e) => e.toLowerCase())
+              .includes(lowerEmail)
+          ) {
+            return {
+              error: true,
+              message: "This discount code cannot be used with your email.",
+              status: "400"
+            };
+          }
         }
 
         if (
@@ -521,9 +567,6 @@ exports.createPaymentIntentService = async (request) => {
                   process.env.STRIPE_MODE === "live" ? "live" : "test",
               },
             });
-            console.log(
-              `\u2705 Updated PaymentIntent amount: ${previousPaymentIntentId}`
-            );
           }
           return {
             clientSecret: existingIntent.client_secret,
@@ -543,14 +586,10 @@ exports.createPaymentIntentService = async (request) => {
               ? discountDoc.shortDescription
               : undefined,
           };
-        } else {
-          console.log(
-            `\u26a0\ufe0f PaymentIntent status ${existingIntent.status} cannot be reused, creating new.`
-          );
         }
       } catch (err) {
         console.warn(
-          `\u26a0\ufe0f Could not retrieve previous PaymentIntent: ${err.message}`
+          `⚠️ Could not retrieve previous PaymentIntent: ${err.message}`
         );
       }
     }
@@ -601,7 +640,7 @@ exports.createPaymentIntentService = async (request) => {
         : undefined,
     };
   } catch (error) {
-    console.error("\u274c Error creating payment intent:", error);
+    console.error("❌ Error creating payment intent:", error);
     return {
       error: true,
       message: "Internal server error.",
@@ -609,7 +648,6 @@ exports.createPaymentIntentService = async (request) => {
     };
   }
 }
-
 exports.createActivityPaymentIntent = async (req, res) => {
 
   // สร้าง job และนำ job เข้าสู่ queue

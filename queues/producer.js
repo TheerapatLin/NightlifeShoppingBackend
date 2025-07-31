@@ -22,6 +22,15 @@ const jobOptions = {
 const createPaymentIntentQueue = new Queue('createPaymentIntent-queue', { connection })
 const createPaymentIntentQueueEvent = new QueueEvents('createPaymentIntent-queue', { connection })
 
+// // --------------------------------------------- STATUS QUEUE EVENT --------------------------------------------- //
+// createPaymentIntentQueueEvent.on('completed', (job) => {
+//   console.log(`✅ Producer : createPaymentIntent => Job ${job} completed!!`)
+// })
+
+// createPaymentIntentQueueEvent.on('failed', ({ job, failedReason }) => {
+//   console.log(`❌ Producer : createPaymentIntent => Job ${job} failed: ${failedReason}`)
+// })
+
 // --------------------------------------------- createPaymentIntent Worker --------------------------------------------- //
 const createPaymentIntentWorker = new Worker('createPaymentIntent-queue', async job => {
   const {createPaymentIntentService} = require('../controllers/activityOrderControllers')
@@ -32,12 +41,25 @@ const createPaymentIntentWorker = new Worker('createPaymentIntent-queue', async 
   jobOptions
 })
 
+// // --------------------------------------------- STATUS Worker EVENT --------------------------------------------- //
+// createPaymentIntentWorker.on('completed', job => {
+//   console.log(`✅ Worker : createPaymentIntent => Job ${job.id} complete!!`)
+// })
+
+// createPaymentIntentWorker.on('failed', (job, err) => {
+//   console.log(`❌ Worker : createPaymentIntent => Job ${job.id} failed... : ${err.message}`)
+// })
+
+// // check worker running
+// if (createPaymentIntentWorker.isRunning()) {
+//   console.log('createPaymentIntentWorker is running...')
+// }
+
 
 // ------------------------------- webhookHandler Queue ------------------------------- //
 const webhookHandlerQueue = new Queue('webhookHandler-queue', { connection })
 const webhookHandlerQueueEvent = new QueueEvents('webhookHandler-queue', { connection })
 
-// // check job status
 // // --------------------------------------------- STATUS QUEUE EVENT --------------------------------------------- //
 // webhookHandlerQueueEvent.on('completed', (job) => {
 //   console.log(`✅ Producer : webhookHandler => Job ${job} completed!!`)
@@ -58,7 +80,6 @@ const webhookHandlerWorker = new Worker('webhookHandler-queue', async job => {
   jobOptions
 })
 
-// // check worker status
 // // --------------------------------------------- STATUS Worker EVENT --------------------------------------------- //
 // webhookHandlerWorker.on('completed', job => {
 //   console.log(`✅ Worker : webhookHandler => Job ${job.id} complete!!`)

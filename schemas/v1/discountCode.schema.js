@@ -158,16 +158,20 @@ const discountCodeSchema = new mongoose.Schema({
     enum: ["all", "include", "exclude"],
     default: "all",
   },
-  allowedUserIds: [
+
+  allowedUserEmails: [
     {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
+      type: String,
+      lowercase: true,
+      trim: true,
     },
   ],
-  blockedUserIds: [
+
+  blockedUserEmails: [
     {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
+      type: String,
+      lowercase: true,
+      trim: true,
     },
   ],
 
