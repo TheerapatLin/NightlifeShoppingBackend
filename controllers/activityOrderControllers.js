@@ -14,6 +14,8 @@ const ActivitySlot = require("../schemas/v1/activitySlot.schema");
 const crypto = require("crypto");
 const redis = require("../app");
 const { sendSetPasswordEmail } = require("../modules/email/email");
+const sendEmail = require("../modules/email/sendVerifyEmail");
+const sendOrderBookedEmail = require("../modules/email/sendOrderBookedEmail");
 
 // generate affiliateCode แบบ 8 ตัว อังกฤษ+ตัวเลข
 const generateAffiliateCode = async (length = 8) => {
@@ -32,6 +34,7 @@ const generateAffiliateCode = async (length = 8) => {
 //4242424242424242 (test code)
 const DiscountCode = require("../schemas/v1/discountCode.schema");
 
+//เมื่อสถานะการจ่ายถูกส่งกลับมาจาก Stripe
 exports.webhookHandler = async (req, res) => {
   const stripe = getStripeInstance();
   const endpointSecret = getEndpointSecret();
@@ -198,7 +201,8 @@ exports.webhookHandler = async (req, res) => {
           children,
         });
         await slot.save();
-
+        await sendOrderBookedEmail(order, user, activity, slot);
+        
         console.log(
           `✅ Participant added for user ${user._id} with ${adults} adults and ${children} children.`
         );
@@ -333,7 +337,8 @@ exports.createActivityPaymentIntent = async (req, res) => {
               .includes(lowerEmail)
           ) {
             return res.status(400).json({
-              error: "This discount code is not available for your email. Please enter the correct emails before using code.",
+              error:
+                "This discount code is not available for your email. Please enter the correct emails before using code.",
             });
           }
         } else if (discountDoc.userRestrictionMode === "exclude") {
