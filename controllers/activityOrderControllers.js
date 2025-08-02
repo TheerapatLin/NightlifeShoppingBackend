@@ -202,7 +202,7 @@ exports.webhookHandler = async (req, res) => {
         });
         await slot.save();
         await sendOrderBookedEmail(order, user, activity, slot);
-        
+
         console.log(
           `✅ Participant added for user ${user._id} with ${adults} adults and ${children} children.`
         );
@@ -593,6 +593,65 @@ exports.getActivityOrdersByUserId = async (req, res) => {
     res.json(orders);
   } catch (error) {
     console.error("Error fetching orders by userId:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// ✅ Superadmin: Get all orders with activity, user, and slot populated
+exports.getAllOrdersForSuperadmin = async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 70;
+    const page = parseInt(req.query.page) || 1;
+    const skip = (page - 1) * limit;
+
+    const [orders, total] = await Promise.all([
+      Order.find({})
+        .sort({ createdAt: -1 }) // 🕒 ล่าสุดก่อน
+        .skip(skip)
+        .limit(limit)
+        .populate("activityId", "nameTh nameEn title")
+        .populate("activitySlotId", "startTime endTime")
+        .populate("userId", "user"),
+      Order.countDocuments(),
+    ]);
+
+    res.json({
+      total,
+      page,
+      pageSize: limit,
+      orders,
+    });
+  } catch (err) {
+    console.error("❌ Failed to fetch orders:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+exports.updateOrderById = async (req, res) => {
+  const { id } = req.params;
+  const { adminNote, status, paidAmount, paidAt } = req.body;
+
+  const updateFields = {};
+
+  if (adminNote !== undefined) updateFields.adminNote = adminNote;
+  if (status !== undefined) updateFields.status = status;
+  if (paidAmount !== undefined) updateFields.paidAmount = paidAmount;
+  if (paidAt !== undefined) updateFields.paidAt = new Date(paidAt);
+
+  try {
+    const order = await Order.findByIdAndUpdate(id, updateFields, {
+      new: true,
+      runValidators: true,
+    })
+      .populate("activityId", "nameTh nameEn title")
+      .populate("activitySlotId", "startTime endTime")
+      .populate("userId", "user");
+
+    if (!order) return res.status(404).json({ message: "Order not found" });
+
+    res.json(order);
+  } catch (err) {
+    console.error("❌ Failed to update order:", err);
     res.status(500).json({ message: "Server error" });
   }
 };
