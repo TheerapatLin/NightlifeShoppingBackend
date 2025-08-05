@@ -241,8 +241,10 @@ exports.webhookHandler = async (req, res) => {
   try {
     const event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
 
+    const emailUser = event.data.object.billing_details.email
+
     // สร้าง job และนำ job เข้าสู่ queue
-    const job = await webhookHandlerQueue.add('webhookHandler-job', event, jobOptions)
+    const job = await webhookHandlerQueue.add(`user-${emailUser}-ts-${Date.now()}`, event, jobOptions)
 
     // รอผลลัพธ์จากการประมวลผลใน worker
     const response = await job.waitUntilFinished(webhookHandlerQueueEvent);
@@ -268,7 +270,7 @@ exports.webhookHandler = async (req, res) => {
 };
 
 // --------------------------------------------- createPaymentIntent QM --------------------------------------------- //
-exports.createPaymentIntentService = async (request) => {
+exports.createPaymentIntentService = async (data) => {
   const stripe = getStripeInstance();
   const {
     items,
@@ -276,7 +278,7 @@ exports.createPaymentIntentService = async (request) => {
     appliedDiscountCode,
     previousPaymentIntentId,
     userEmail, // ✅ เพิ่มตรงนี้
-  } = request;
+  } = data;
   console.log("🎯 Incoming userEmail from frontend:", userEmail);
   console.log(
     "🎯 Incoming appliedDiscountCode from frontend:",
@@ -650,8 +652,11 @@ exports.createPaymentIntentService = async (request) => {
 }
 exports.createActivityPaymentIntent = async (req, res) => {
 
+  const emailUser = req.body.userEmail
+  console.log('req body createActivityPaymentIntent => ', emailUser)
+
   // สร้าง job และนำ job เข้าสู่ queue
-  const job = await createPaymentIntentQueue.add('createPaymentIntent-job', req.body, jobOptions)
+  const job = await createPaymentIntentQueue.add(`user-${emailUser}-ts-${Date.now()}`, req.body, jobOptions)
 
   // รอผลลัพธ์จากการประมวลผลใน worker
   const response = await job.waitUntilFinished(createPaymentIntentQueueEvent);

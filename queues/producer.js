@@ -9,20 +9,23 @@ const connection = new IORedis(`${REDISDATABASEURI}`, {
 const jobOptions = {
   attempts: 3,            // จำนวนครั้งที่ retry ถ้า failed
   backoff: {
-      type: 'exponential',// 3s => 6s => 12s
-      delay: 3000         // หน่วงเวลา 3 วินาทีก่อน retry
+    type: 'exponential',// 3s => 6s => 12s
+    delay: 3000         // หน่วงเวลา 3 วินาทีก่อน retry
   },
-  removeOnComplete: true, // ลบทันทีเมื่อ completed
+  removeOnComplete: {
+    age: 3600,
+    count: 500
+  }, // เก็บ job ที่ complete ไว้ 1 ชม. เป็นจำนวน 500 job
   removeOnFail: {
     age: 3600           // หาก fail ให้ลบ event นี้ภายใน 1 ชม.
   }
 }
 
-// ------------------------------- createPaymentIntent Queue ------------------------------- //
+// ------------------------------- createPaymentIntent QUEUE ------------------------------- //
 const createPaymentIntentQueue = new Queue('createPaymentIntent-queue', { connection })
 const createPaymentIntentQueueEvent = new QueueEvents('createPaymentIntent-queue', { connection })
 
-// // --------------------------------------------- STATUS QUEUE EVENT --------------------------------------------- //
+// // --------------------------------------------- STATUS QUEUE --------------------------------------------- //
 // createPaymentIntentQueueEvent.on('completed', (job) => {
 //   console.log(`✅ Producer : createPaymentIntent => Job ${job} completed!!`)
 // })
@@ -31,19 +34,29 @@ const createPaymentIntentQueueEvent = new QueueEvents('createPaymentIntent-queue
 //   console.log(`❌ Producer : createPaymentIntent => Job ${job} failed: ${failedReason}`)
 // })
 
-// --------------------------------------------- createPaymentIntent Worker --------------------------------------------- //
+// --------------------------------------------- createPaymentIntent WORKER --------------------------------------------- //
 const createPaymentIntentWorker = new Worker('createPaymentIntent-queue', async job => {
-  const {createPaymentIntentService} = require('../controllers/activityOrderControllers')
-  const result = await createPaymentIntentService(job.data);
-  return result
+  try {
+    const { createPaymentIntentService } = require('../controllers/activityOrderControllers');
+    const result = await createPaymentIntentService(job.data)
+    return result;
+  } catch (error) {
+    console.error(`[Worker Error] createPaymentIntent-queue => ${error}`);
+    return {
+      error: true,
+      message: "Processing createPaymentIntentWorker failed.",
+      status: "500"
+    };
+  }
 }, {
   connection,             // เชื่อมต่อ ioredis
   jobOptions
 })
 
-// // --------------------------------------------- STATUS Worker EVENT --------------------------------------------- //
+// // --------------------------------------------- STATUS WORKER --------------------------------------------- //
 // createPaymentIntentWorker.on('completed', job => {
 //   console.log(`✅ Worker : createPaymentIntent => Job ${job.id} complete!!`)
+//   console.log('job data => ', job.name)
 // })
 
 // createPaymentIntentWorker.on('failed', (job, err) => {
@@ -56,11 +69,11 @@ const createPaymentIntentWorker = new Worker('createPaymentIntent-queue', async 
 // }
 
 
-// ------------------------------- webhookHandler Queue ------------------------------- //
+// ------------------------------- webhookHandler QUEUE ------------------------------- //
 const webhookHandlerQueue = new Queue('webhookHandler-queue', { connection })
 const webhookHandlerQueueEvent = new QueueEvents('webhookHandler-queue', { connection })
 
-// // --------------------------------------------- STATUS QUEUE EVENT --------------------------------------------- //
+// // --------------------------------------------- STATUS QUEUE --------------------------------------------- //
 // webhookHandlerQueueEvent.on('completed', (job) => {
 //   console.log(`✅ Producer : webhookHandler => Job ${job} completed!!`)
 // })
@@ -69,20 +82,31 @@ const webhookHandlerQueueEvent = new QueueEvents('webhookHandler-queue', { conne
 //   console.log(`❌ Producer : webhookHandler => Job ${job} failed: ${failedReason}`)
 // })
 
-// --------------------------------------------- createPaymentIntent Worker --------------------------------------------- //
+// --------------------------------------------- webhookHandler WORKER --------------------------------------------- //
 const webhookHandlerWorker = new Worker('webhookHandler-queue', async job => {
-  const {webhookHandlerService} = require('../controllers/activityOrderControllers')
-  const result = webhookHandlerService(job.data)
-  // console.log(`job.data => ${JSON.stringify(job, null, 2)}`)
-  return result
+  try {
+    const { webhookHandlerService } = require('../controllers/activityOrderControllers')
+    const result = webhookHandlerService(job.data)
+    // console.log(`job.data => ${JSON.stringify(job, null, 2)}`)
+    return result
+  } catch (error) {
+    console.error(`[Worker Error] webhookHandler-queue => ${error}`);
+    return {
+      error: true,
+      message: "Processing webhookHandlerWorker failed.",
+      status: "500"
+    };
+  }
+
 }, {
   connection,             // เชื่อมต่อ ioredis
   jobOptions
 })
 
-// // --------------------------------------------- STATUS Worker EVENT --------------------------------------------- //
+// // --------------------------------------------- STATUS WORKER --------------------------------------------- //
 // webhookHandlerWorker.on('completed', job => {
 //   console.log(`✅ Worker : webhookHandler => Job ${job.id} complete!!`)
+//   console.log('job data => ',job.name)
 // })
 
 // webhookHandlerWorker.on('failed', (job, err) => {
