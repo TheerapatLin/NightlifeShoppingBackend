@@ -16,7 +16,6 @@ const redis = require("../app");
 const { sendSetPasswordEmail } = require("../modules/email/email");
 const sendEmail = require("../modules/email/sendVerifyEmail");
 const sendOrderBookedEmail = require("../modules/email/sendOrderBookedEmail");
-
 const {
   createPaymentIntentQueue,
   createPaymentIntentQueueEvent,
@@ -41,7 +40,6 @@ const generateAffiliateCode = async (length = 8) => {
 
 //4242424242424242 (test code)
 const DiscountCode = require("../schemas/v1/discountCode.schema");
-
 
 // --------------------------------------------- webhookHandler QM --------------------------------------------- //
 exports.webhookHandlerService = async (event) => {
@@ -203,22 +201,22 @@ exports.webhookHandlerService = async (event) => {
 
       console.log(`✅ Order saved successfully: ${order._id}`);
 
-        slot.participants.push({
-          userId: user._id,
-          name: user.user.name,
-          profileImage: user.user.profileImage || "",
-          paymentStatus: "paid",
-          attendanceStatus: "joined",
-          joinRequestTime: new Date(),
-          adults,
-          children,
-        });
-        await slot.save();
-        await sendOrderBookedEmail(order, user, activity, slot);
+      slot.participants.push({
+        userId: user._id,
+        name: user.user.name,
+        profileImage: user.user.profileImage || "",
+        paymentStatus: "paid",
+        attendanceStatus: "joined",
+        joinRequestTime: new Date(),
+        adults,
+        children,
+      });
+      await slot.save();
+      await sendOrderBookedEmail(order, user, activity, slot);
 
-        console.log(
-          `✅ Participant added for user ${user._id} with ${adults} adults and ${children} children.`
-        );
+      console.log(
+        `✅ Participant added for user ${user._id} with ${adults} adults and ${children} children.`
+      );
 
       break;
     }
@@ -241,10 +239,31 @@ exports.webhookHandler = async (req, res) => {
   try {
     const event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
 
-    const emailUser = event.data.object.billing_details.email
+    let emailUser = ''
+
+    const dataObject = event.data.object;
+
+    switch (dataObject.object) {
+      case 'payment_intent': {
+        if (dataObject.metadata && dataObject.metadata.email) {
+          emailUser = dataObject.metadata.email;
+        }
+        break;
+      }
+      case 'charge': {
+        if (dataObject.billing_details && dataObject.billing_details.email) {
+          emailUser = dataObject.billing_details.email;
+        }
+        break;
+      }
+      default:
+        console.warn("⚠️ Cannot extract email: Unknown object type");
+    }
+    // console.log("event => ", event)
+    // console.log("emailUser => ", emailUser)
 
     // สร้าง job และนำ job เข้าสู่ queue
-    const job = await webhookHandlerQueue.add(`user-${emailUser}-ts-${Date.now()}`, event, jobOptions)
+    const job = await webhookHandlerQueue.add(`user-${emailUser || 'unknown'}-ts-${Date.now()}`, event, jobOptions)
 
     // รอผลลัพธ์จากการประมวลผลใน worker
     const response = await job.waitUntilFinished(webhookHandlerQueueEvent);
@@ -311,13 +330,11 @@ exports.createPaymentIntentService = async (data) => {
 
   try {
     const activity = await Activity.findById(activityId);
-    if (!activity) {
-      return {
-        error: true,
-        message: "Activity not found.",
-        status: "404"
-      };
-    }
+    if (!activity) return {
+      error: true,
+      message: "Activity not found.",
+      status: "404"
+    };
 
     const slot = await ActivitySlot.findById(scheduleId);
     if (!slot)
@@ -643,17 +660,15 @@ exports.createPaymentIntentService = async (data) => {
     };
   } catch (error) {
     console.error("❌ Error creating payment intent:", error);
-    return {
-      error: true,
-      message: "Internal server error.",
-      status: "500"
-    };
+    return res.status(500).json({ error: "Internal server error" });
   }
 }
+
 exports.createActivityPaymentIntent = async (req, res) => {
 
-  const emailUser = req.body.userEmail
-  console.log('req body createActivityPaymentIntent => ', emailUser)
+  const emailUser = ''
+  // console.log("req body => ", req.body)
+  // console.log("emailUser => ", emailUser)
 
   // สร้าง job และนำ job เข้าสู่ queue
   const job = await createPaymentIntentQueue.add(`user-${emailUser}-ts-${Date.now()}`, req.body, jobOptions)
@@ -670,6 +685,7 @@ exports.createActivityPaymentIntent = async (req, res) => {
   }
 
   return res.status(200).json(response)
+
 
 };
 
