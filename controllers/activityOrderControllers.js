@@ -242,16 +242,11 @@ exports.webhookHandler = async (req, res) => {
     let emailUser = ''
 
     const dataObject = event.data.object;
+    console.log("dataObject => ", dataObject)
 
     switch (dataObject.object) {
-      case 'payment_intent': {
-        if (dataObject.metadata && dataObject.metadata.email) {
-          emailUser = dataObject.metadata.email;
-        }
-        break;
-      }
       case 'charge': {
-        if (dataObject.billing_details && dataObject.billing_details.email) {
+        if (dataObject.billing_details.email) {
           emailUser = dataObject.billing_details.email;
         }
         break;
