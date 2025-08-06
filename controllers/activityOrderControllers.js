@@ -21,6 +21,8 @@ const {
   createPaymentIntentQueueEvent,
   webhookHandlerQueue,
   webhookHandlerQueueEvent,
+  sendOrderBookedEmailQueue,
+  sendOrderBookedEmailQueueEvent,
   jobOptions
 } = require('../queues/producer')
 
@@ -212,7 +214,11 @@ exports.webhookHandlerService = async (event) => {
         children,
       });
       await slot.save();
-      await sendOrderBookedEmail(order, user, activity, slot);
+      await sendOrderBookedEmailQueue.add(`sendOrder-email-${Date.now()}`, { 
+        order, 
+        user, 
+        activity, 
+        slot }, jobOptions)
 
       console.log(
         `✅ Participant added for user ${user._id} with ${adults} adults and ${children} children.`
@@ -242,7 +248,7 @@ exports.webhookHandler = async (req, res) => {
     let emailUser = ''
 
     const dataObject = event.data.object;
-    console.log("dataObject => ", dataObject)
+    // console.log("dataObject => ", dataObject)
 
     switch (dataObject.object) {
       case 'charge': {
@@ -254,7 +260,6 @@ exports.webhookHandler = async (req, res) => {
       default:
         console.warn("⚠️ Cannot extract email: Unknown object type");
     }
-    // console.log("event => ", event)
     // console.log("emailUser => ", emailUser)
 
     // สร้าง job และนำ job เข้าสู่ queue
@@ -284,7 +289,7 @@ exports.webhookHandler = async (req, res) => {
 };
 
 // --------------------------------------------- createPaymentIntent QM --------------------------------------------- //
-exports.createPaymentIntentService = async (data) => {
+exports.createActivityPaymentIntent = async (req, res) => {
   const stripe = getStripeInstance();
   const {
     items,
@@ -292,7 +297,7 @@ exports.createPaymentIntentService = async (data) => {
     appliedDiscountCode,
     previousPaymentIntentId,
     userEmail, // ✅ เพิ่มตรงนี้
-  } = data;
+  } = req.body;
   console.log("🎯 Incoming userEmail from frontend:", userEmail);
   console.log(
     "🎯 Incoming appliedDiscountCode from frontend:",
@@ -300,11 +305,7 @@ exports.createPaymentIntentService = async (data) => {
   );
 
   if (!Array.isArray(items) || items.length === 0) {
-    return {
-      error: true,
-      message: "Missing items in request body",
-      status: "400"
-    };
+    return res.status(400).json({ error: "Missing items in request body" });
   }
 
   const {
@@ -316,35 +317,23 @@ exports.createPaymentIntentService = async (data) => {
   } = items[0];
 
   if (!activityId || !scheduleId || !startDate) {
-    return {
-      error: true,
-      message: "activityId, scheduleId, and startDate are required.",
-      status: "400"
-    };
+    return res
+      .status(400)
+      .json({ error: "activityId, scheduleId, and startDate are required" });
   }
 
   try {
     const activity = await Activity.findById(activityId);
-    if (!activity) return {
-      error: true,
-      message: "Activity not found.",
-      status: "404"
-    };
+    if (!activity) return res.status(404).json({ error: "Activity not found" });
 
     const slot = await ActivitySlot.findById(scheduleId);
     if (!slot)
-      return {
-        error: true,
-        message: "Schedule (slot) not found.",
-        status: "404"
-      };
+      return res.status(404).json({ error: "Schedule (slot) not found" });
 
     if (slot.activityId.toString() !== activityId.toString()) {
-      return {
-        error: true,
-        message: "Schedule does not belong to the specified activity.",
-        status: "400"
-      };
+      return res
+        .status(400)
+        .json({ error: "Schedule does not belong to the specified activity." });
     }
 
     const adultPrice = slot.priceAdult || activity.priceAdult || slot.cost || 0;
@@ -385,11 +374,9 @@ exports.createPaymentIntentService = async (data) => {
         });
         console.log("🔍 Found discountDoc:", discountDoc);
         if (!discountDoc)
-          return {
-            error: true,
-            message: "Invalid discount code provided.",
-            status: "400"
-          };
+          return res
+            .status(400)
+            .json({ error: "Invalid discount code provided." });
 
         const now = new Date();
         if (
@@ -397,11 +384,7 @@ exports.createPaymentIntentService = async (data) => {
           now < discountDoc.validFrom ||
           now > discountDoc.validUntil
         ) {
-          return {
-            error: true,
-            message: "Discount code is not valid.",
-            status: "400"
-          };
+          return res.status(400).json({ error: "Discount code is not valid." });
         }
 
         // ✅ ตรวจอีเมลตาม restriction type
@@ -417,11 +400,10 @@ exports.createPaymentIntentService = async (data) => {
               .map((e) => e.toLowerCase())
               .includes(lowerEmail)
           ) {
-            return {
-              error: true,
-              message: "This discount code is not available for your email. Please enter the correct emails before using code.",
-              status: "400"
-            };
+            return res.status(400).json({
+              error:
+                "This discount code is not available for your email. Please enter the correct emails before using code.",
+            });
           }
         } else if (discountDoc.userRestrictionMode === "exclude") {
           if (
@@ -430,11 +412,9 @@ exports.createPaymentIntentService = async (data) => {
               .map((e) => e.toLowerCase())
               .includes(lowerEmail)
           ) {
-            return {
-              error: true,
-              message: "This discount code cannot be used with your email.",
-              status: "400"
-            };
+            return res.status(400).json({
+              error: "This discount code cannot be used with your email.",
+            });
           }
         }
 
@@ -450,11 +430,9 @@ exports.createPaymentIntentService = async (data) => {
             (discountDoc.eventIdsInorExclude === "include" && !isMatch) ||
             (discountDoc.eventIdsInorExclude === "exclude" && isMatch)
           ) {
-            return {
-              error: true,
-              message: "This code cannot be used with this activity.",
-              status: "400"
-            };
+            return res.status(400).json({
+              error: "This code cannot be used with this activity.",
+            });
           }
         }
 
@@ -529,11 +507,9 @@ exports.createPaymentIntentService = async (data) => {
     const amountInSatang = Math.round(paidAmount * 100);
 
     if (amountInSatang < 1000) {
-      return {
-        error: true,
-        message: "Total payable amount must be at least 10 THB.",
-        status: "400"
-      };
+      return res.status(400).json({
+        error: "Total payable amount must be at least 10 THB.",
+      });
     }
 
     if (affiliateBudgetApplyMode === "per_person") {
@@ -582,7 +558,7 @@ exports.createPaymentIntentService = async (data) => {
               },
             });
           }
-          return {
+          return res.send({
             clientSecret: existingIntent.client_secret,
             originalPrice,
             paidAmount,
@@ -599,7 +575,7 @@ exports.createPaymentIntentService = async (data) => {
             discountCodeShortDescriptions: discountDoc
               ? discountDoc.shortDescription
               : undefined,
-          };
+          });
         }
       } catch (err) {
         console.warn(
@@ -637,7 +613,7 @@ exports.createPaymentIntentService = async (data) => {
       },
     });
 
-    return {
+    return res.send({
       clientSecret: paymentIntent.client_secret,
       originalPrice,
       paidAmount,
@@ -652,36 +628,11 @@ exports.createPaymentIntentService = async (data) => {
       discountCodeShortDescriptions: discountDoc
         ? discountDoc.shortDescription
         : undefined,
-    };
+    });
   } catch (error) {
     console.error("❌ Error creating payment intent:", error);
     return res.status(500).json({ error: "Internal server error" });
   }
-}
-
-exports.createActivityPaymentIntent = async (req, res) => {
-
-  const emailUser = ''
-  // console.log("req body => ", req.body)
-  // console.log("emailUser => ", emailUser)
-
-  // สร้าง job และนำ job เข้าสู่ queue
-  const job = await createPaymentIntentQueue.add(`user-${emailUser}-ts-${Date.now()}`, req.body, jobOptions)
-
-  // รอผลลัพธ์จากการประมวลผลใน worker
-  const response = await job.waitUntilFinished(createPaymentIntentQueueEvent);
-
-  // if error
-  switch (response.status) {
-    case "400":
-      return res.status(400).json({ message: response.message });
-    case "404":
-      return res.status(404).json({ message: response.message });
-  }
-
-  return res.status(200).json(response)
-
-
 };
 
 exports.getAllActivityOrders = async (req, res) => {

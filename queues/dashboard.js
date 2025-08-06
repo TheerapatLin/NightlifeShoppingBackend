@@ -5,6 +5,7 @@ const { ExpressAdapter } = require('@bull-board/express');
 const {
     createPaymentIntentQueue,
     webhookHandlerQueue,
+    sendOrderBookedEmailQueue
 } = require('./producer');
 
 const serverAdapter = new ExpressAdapter();
@@ -13,7 +14,10 @@ serverAdapter.setBasePath('/admin/queues');
 createBullBoard({
     queues: [
         new BullMQAdapter(createPaymentIntentQueue),
-        new BullMQAdapter(webhookHandlerQueue)],
+        new BullMQAdapter(webhookHandlerQueue),
+        new BullMQAdapter(sendOrderBookedEmailQueue),
+    ],
+
     serverAdapter,
     options: {
         uiConfig: {

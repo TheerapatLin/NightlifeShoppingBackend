@@ -118,11 +118,36 @@ const webhookHandlerWorker = new Worker('webhookHandler-queue', async job => {
 //   console.log('webhookHandlerWorker is running...')
 // }
 
+// ------------------------------- webhookHandler QUEUE ------------------------------- //
+const sendOrderBookedEmailQueue = new Queue('sendOrder-Email-queue', { connection })
+const sendOrderBookedEmailQueueEvent = new QueueEvents('sendOrder-Email-queue', { connection })
+
+// --------------------------------------------- webhookHandler WORKER --------------------------------------------- //
+const sendOrderBookedEmailWorker = new Worker('sendOrder-Email-queue', async job => {
+  try {
+    const sendOrderBookedEmail = require("../modules/email/sendOrderBookedEmail");
+    const {order,user,activity,slot} = job.data
+    await sendOrderBookedEmail(order,user,activity,slot);
+  } catch (error) {
+    console.error(`[Worker Error] sendOrder-Email-queue => ${error}`);
+    return {
+      error: true,
+      message: "Processing sendOrderBookedEmailWorker failed.",
+      status: "500"
+    };
+  }
+
+}, {
+  connection,             // เชื่อมต่อ ioredis
+  jobOptions
+})
 
 module.exports = {
   createPaymentIntentQueue,
   createPaymentIntentQueueEvent,
   webhookHandlerQueue,
   webhookHandlerQueueEvent,
+  sendOrderBookedEmailQueue,
+  sendOrderBookedEmailQueueEvent,
   jobOptions
 }
