@@ -21,54 +21,6 @@ const jobOptions = {
   }
 }
 
-// ------------------------------- createPaymentIntent QUEUE ------------------------------- //
-const createPaymentIntentQueue = new Queue('createPaymentIntent-queue', { connection })
-const createPaymentIntentQueueEvent = new QueueEvents('createPaymentIntent-queue', { connection })
-
-// // --------------------------------------------- STATUS QUEUE --------------------------------------------- //
-// createPaymentIntentQueueEvent.on('completed', (job) => {
-//   console.log(`✅ Producer : createPaymentIntent => Job ${job} completed!!`)
-// })
-
-// createPaymentIntentQueueEvent.on('failed', ({ job, failedReason }) => {
-//   console.log(`❌ Producer : createPaymentIntent => Job ${job} failed: ${failedReason}`)
-// })
-
-// --------------------------------------------- createPaymentIntent WORKER --------------------------------------------- //
-const createPaymentIntentWorker = new Worker('createPaymentIntent-queue', async job => {
-  try {
-    const { createPaymentIntentService } = require('../controllers/activityOrderControllers');
-    const result = await createPaymentIntentService(job.data)
-    return result;
-  } catch (error) {
-    console.error(`[Worker Error] createPaymentIntent-queue => ${error}`);
-    return {
-      error: true,
-      message: "Processing createPaymentIntentWorker failed.",
-      status: "500"
-    };
-  }
-}, {
-  connection,             // เชื่อมต่อ ioredis
-  jobOptions
-})
-
-// // --------------------------------------------- STATUS WORKER --------------------------------------------- //
-// createPaymentIntentWorker.on('completed', job => {
-//   console.log(`✅ Worker : createPaymentIntent => Job ${job.id} complete!!`)
-//   console.log('job data => ', job.name)
-// })
-
-// createPaymentIntentWorker.on('failed', (job, err) => {
-//   console.log(`❌ Worker : createPaymentIntent => Job ${job.id} failed... : ${err.message}`)
-// })
-
-// // check worker running
-// if (createPaymentIntentWorker.isRunning()) {
-//   console.log('createPaymentIntentWorker is running...')
-// }
-
-
 // ------------------------------- webhookHandler QUEUE ------------------------------- //
 const webhookHandlerQueue = new Queue('webhookHandler-queue', { connection })
 const webhookHandlerQueueEvent = new QueueEvents('webhookHandler-queue', { connection })
@@ -143,8 +95,6 @@ const sendOrderBookedEmailWorker = new Worker('sendOrder-Email-queue', async job
 })
 
 module.exports = {
-  createPaymentIntentQueue,
-  createPaymentIntentQueueEvent,
   webhookHandlerQueue,
   webhookHandlerQueueEvent,
   sendOrderBookedEmailQueue,

@@ -17,8 +17,6 @@ const { sendSetPasswordEmail } = require("../modules/email/email");
 const sendEmail = require("../modules/email/sendVerifyEmail");
 const sendOrderBookedEmail = require("../modules/email/sendOrderBookedEmail");
 const {
-  createPaymentIntentQueue,
-  createPaymentIntentQueueEvent,
   webhookHandlerQueue,
   webhookHandlerQueueEvent,
   sendOrderBookedEmailQueue,
