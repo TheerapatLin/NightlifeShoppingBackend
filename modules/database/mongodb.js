@@ -79,6 +79,30 @@ const connectMongoDB = async () => {
       ];
 
       for (const { name, model } of schemasToSync) {
+        // 🔄 Fix swapped lat/lng for Activity documents before syncing indexes
+        if (name === "Activity") {
+          try {
+            const ActivityModel = model;
+            const activities = await ActivityModel.find({
+              "location.coordinates.0": { $gt: -90, $lt: 90 }, // latitude in wrong place
+              "location.coordinates.1": { $gt: 90, $lt: 180 }, // longitude in wrong place
+            });
+
+            for (const activity of activities) {
+              const [lat, lng] = activity.location.coordinates;
+              activity.location.coordinates = [lng, lat];
+              await activity.save();
+            }
+
+            console.log(
+              chalk.blueBright(
+                `✅ Swapped coordinates for ${activities.length} activities`
+              )
+            );
+          } catch (fixErr) {
+            console.error("❌ Failed to fix coordinates in Activity:", fixErr);
+          }
+        }
         const result = await model.syncIndexes();
         console.log(chalk.green(`✅ Indexes synced for ${name}:`), result);
       }

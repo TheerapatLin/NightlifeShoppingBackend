@@ -201,11 +201,11 @@ discountCodeSchema.pre("save", function (next) {
   next();
 });
 
-module.exports = mongoose.model("DiscountCode", discountCodeSchema);
-
 discountCodeSchema.index({ code: 1 }, { unique: true });
 discountCodeSchema.index({ affiliateUserId: 1 });
 discountCodeSchema.index({ validFrom: 1, validUntil: 1, isActive: 1 });
 discountCodeSchema.index({ allowedUserEmails: 1 });
 discountCodeSchema.index({ blockedUserEmails: 1 });
 discountCodeSchema.index({ createdBy: 1 });
+
+module.exports = mongoose.model("DiscountCode", discountCodeSchema);

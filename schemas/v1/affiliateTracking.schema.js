@@ -74,12 +74,6 @@ const affiliateTrackingSchema = new mongoose.Schema(
   }
 );
 
-const AffiliateTracking = mongoose.model(
-  "AffiliateTracking",
-  affiliateTrackingSchema
-);
-module.exports = AffiliateTracking;
-
 affiliateTrackingSchema.index({ referrer: 1 });
 affiliateTrackingSchema.index({ referredUser: 1 });
 affiliateTrackingSchema.index({ activityId: 1 });
@@ -88,3 +82,9 @@ affiliateTrackingSchema.index({ rewardStatus: 1 });
 affiliateTrackingSchema.index({ bookingId: 1 });
 affiliateTrackingSchema.index({ clickTime: -1 }); // ถ้าอยากเรียงล่าสุดก่อน
 affiliateTrackingSchema.index({ referrer: 1, activityId: 1 }); // compound สำหรับ analytics
+
+const AffiliateTracking = mongoose.model(
+  "AffiliateTracking",
+  affiliateTrackingSchema
+);
+module.exports = AffiliateTracking;

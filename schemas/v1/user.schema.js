@@ -104,12 +104,13 @@ const UserSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-const User = mongoose.model("User", UserSchema);
-module.exports = User;
-
 UserSchema.index({ "user.email": 1 }, { unique: true });
 UserSchema.index({ affiliateCode: 1 }, { unique: true });
 UserSchema.index({ "user.verified.email": 1 });
 UserSchema.index({ userType: 1, userData: 1 });
 UserSchema.index({ "loggedInDevices.deviceFingerprint": 1 });
 UserSchema.index({ "affiliateBankInfo.accountNumber": 1 });
+
+const User = mongoose.model("User", UserSchema);
+module.exports = User;
+
