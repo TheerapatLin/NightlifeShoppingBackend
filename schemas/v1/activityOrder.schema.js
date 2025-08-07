@@ -68,16 +68,6 @@ const activityOrderSchema = new mongoose.Schema(
       min: 0,
     },
 
-    discountCodeUsed: {
-      type: String,
-      default: "",
-    },
-
-    discountCodeAmount: {
-      type: Number,
-      default: 0,
-    },
-
     // ID ของโค้ดส่วนลดที่ใช้ (ถ้ามี)
     discountCodeId: {
       type: mongoose.Schema.Types.ObjectId,

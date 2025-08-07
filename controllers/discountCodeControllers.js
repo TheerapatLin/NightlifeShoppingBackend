@@ -17,38 +17,114 @@ exports.validateDiscountCode = async (req, res) => {
       code: { $regex: `^${code}$`, $options: "i" },
     });
 
+    if (discountDoc) {
+      // ถ้าโค้ดนี้ต้อง sensitive แต่ตัวอักษรไม่ตรง
+      if (discountDoc.caseSensitive && discountDoc.code !== code) {
+        console.error(`Code ${code} case does not match.`);
+        return res
+          .status(404)
+          .json({ valid: false, message: `Code ${code} not found.` });
+      }
+
+      if (!discountDoc.isActive) {
+        return res
+          .status(400)
+          .json({ valid: false, message: "This code is not active." });
+      }
+
+      if (discountDoc.loginNeed && !req.user) {
+        return res.status(400).json({
+          valid: false,
+          message: "Code found.\nBut please login before using this code.",
+        });
+      }
+
+      const now = new Date();
+      if (now < discountDoc.validFrom || now > discountDoc.validUntil) {
+        return res
+          .status(400)
+          .json({ valid: false, message: "This code is expired." });
+      }
+
+      if (
+        discountDoc.usageLimit !== null &&
+        discountDoc.usedCount >= discountDoc.usageLimit
+      ) {
+        return res.status(400).json({
+          valid: false,
+          message: "Usage limit reached for this code.",
+        });
+      }
+
+      return res.status(200).json({
+        valid: true,
+        message: "Code is valid.",
+        discountType: discountDoc.discountType,
+        discountValue: discountDoc.discountValue,
+        combinable: discountDoc.combinable,
+        shortDescription: discountDoc.shortDescription,
+        description: discountDoc.description,
+        code: discountDoc.code,
+      });
+    }
+
+    // 🔻 ถ้าไม่เจอใน DiscountCode → หาใน User (affiliateCode)
+    const matchedAffiliateUser = await User.findOne({
+      affiliateCode: { $regex: `^${code}$`, $options: "i" },
+    });
+
+    if (matchedAffiliateUser) {
+      return res.status(200).json({
+        valid: false,
+        isAffiliateCode: true,
+        affiliateCode: matchedAffiliateUser.affiliateCode,
+        affiliateUserId: matchedAffiliateUser._id.toString(),
+        message: "Affiliate code recognized.",
+      });
+    }
+
+    // ❌ ไม่เจอทั้งคู่
+    return res
+      .status(404)
+      .json({ valid: false, message: `Code ${code} not found.` });
+  } catch (error) {
+    console.error("❌ Error validating discount code:", error);
+    return res
+      .status(500)
+      .json({ valid: false, message: "Internal server error." });
+  }
+};
+
+exports.validateCodeWithEmail = async (req, res) => {
+  try {
+    const { code, email } = req.body;
+
+    if (!code || !email) {
+      return res
+        .status(400)
+        .json({ valid: false, message: "Code and email are required." });
+    }
+
+    const discountDoc = await DiscountCode.findOne({
+      code: { $regex: `^${code}$`, $options: "i" },
+    });
+
     if (!discountDoc) {
-      console.error(`Code ${code} not found.`);
-      return res
-        .status(404)
-        .json({ valid: false, message: `Code ${code} not found.` });
+      return res.status(404).json({ valid: false, message: "Code not found." });
     }
 
-    // ถ้าโค้ดนี้ต้อง sensitive แต่ตัวอักษรไม่ตรง
     if (discountDoc.caseSensitive && discountDoc.code !== code) {
-      console.error(`Code ${code} case does not match.`);
       return res
         .status(404)
         .json({ valid: false, message: `Code ${code} not found.` });
     }
 
-    // ตรวจสอบว่าโค้ดเปิดใช้งานอยู่
     if (!discountDoc.isActive) {
       return res
         .status(400)
         .json({ valid: false, message: "This code is not active." });
     }
 
-    if (discountDoc.loginNeed && !req.user) {
-      return res
-        .status(400)
-        .json({
-          valid: false,
-          message: "Code found.\nBut please login before using this code.",
-        });
-    }
-
-    // ตรวจสอบวันหมดอายุ
     const now = new Date();
     if (now < discountDoc.validFrom || now > discountDoc.validUntil) {
       return res
@@ -56,20 +132,45 @@ exports.validateDiscountCode = async (req, res) => {
         .json({ valid: false, message: "This code is expired." });
     }
 
-    // ตรวจสอบ usageLimit
     if (
       discountDoc.usageLimit !== null &&
       discountDoc.usedCount >= discountDoc.usageLimit
     ) {
       return res
         .status(400)
-        .json({ valid: false, message: "Usage limit reached for this code." });
+        .json({ valid: false, message: "Usage limit reached." });
     }
 
-    // ✅ Passed all checks
+    // ✅ ตรวจสิทธิ์อีเมล
+    const mode = discountDoc.userRestrictionMode || "all";
+    const emailLower = email.toLowerCase();
+
+    if (mode === "include") {
+      const allowed = (discountDoc.allowedUserEmails || []).map((e) =>
+        e.toLowerCase()
+      );
+      if (!allowed.includes(emailLower)) {
+        return res.status(403).json({
+          valid: false,
+          message: "This email is not allowed for this code.",
+        });
+      }
+    }
+
+    if (mode === "exclude") {
+      const blocked = (discountDoc.blockedUserEmails || []).map((e) =>
+        e.toLowerCase()
+      );
+      if (blocked.includes(emailLower)) {
+        return res.status(403).json({
+          valid: false,
+          message: "This email is excluded from using this code.",
+        });
+      }
+    }
+
     return res.status(200).json({
       valid: true,
-      message: "Code is valid.",
       discountType: discountDoc.discountType,
       discountValue: discountDoc.discountValue,
       combinable: discountDoc.combinable,
@@ -77,8 +178,8 @@ exports.validateDiscountCode = async (req, res) => {
       description: discountDoc.description,
       code: discountDoc.code,
     });
-  } catch (error) {
-    console.error("❌ Error validating discount code:", error);
+  } catch (err) {
+    console.error("validateCodeWithEmail error:", err);
     return res
       .status(500)
       .json({ valid: false, message: "Internal server error." });
@@ -132,6 +233,18 @@ exports.createDiscountCode = async (req, res) => {
   try {
     const codeData = req.body;
     codeData.createdBy = req.user.userId;
+
+    // ✅ ตรวจว่าโค้ดนี้ซ้ำกับที่มีอยู่แล้วแบบ case-insensitive
+    const existing = await DiscountCode.findOne({
+      code: { $regex: `^${codeData.code}$`, $options: "i" },
+    });
+
+    if (existing) {
+      return res.status(400).json({
+        success: false,
+        message: `Code "${codeData.code}" already exists (case-insensitive).`,
+      });
+    }
 
     const newCode = await DiscountCode.create(codeData);
     res.status(201).json({ success: true, code: newCode });

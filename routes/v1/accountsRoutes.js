@@ -41,16 +41,17 @@ const {
   getAffiliateSummary,
   updateAffiliateBankInfo,
   getAffiliateBankInfo,
-  getAffiliateDiscount
+  getAffiliateDiscount,
+  updateUserRoleOrAffiliateCode,
 } = require("../../controllers/accountsControllers");
 
 const {
   verifyAccessToken,
   verifyRefreshToken,
   verifyAccessTokenWeb,
+  authRoles,
 } = require("../../middlewares/auth");
 
-router.get("/affiliate-discount", getAffiliateDiscount);
 router.put("/affiliate-setting", verifyAccessTokenWeb, updateAffiliateSetting);
 router.get("/affiliate-settings", verifyAccessTokenWeb, getAffiliateSettings);
 router.get("/affiliate-summary", verifyAccessTokenWeb, getAffiliateSummary);
@@ -60,7 +61,6 @@ router.put(
   updateAffiliateBankInfo
 );
 router.get("/affiliate-bank-info", verifyAccessTokenWeb, getAffiliateBankInfo);
-
 
 //? Set Password
 router.get("/set-password", setPasswordPage);
@@ -123,6 +123,25 @@ router.get(
   "/getuserweb/:user",
   [getAccountRateLimiter, verifyAccessTokenWeb],
   getOneAccount
+);
+
+router.get(
+  "/superadmin/all-accounts",
+  [verifyAccessTokenWeb, authRoles(["superadmin"])],
+  getAllAccounts
+);
+// Get all accounts (superadmin only)
+router.get(
+  "/superadmin/all-accounts",
+  [verifyAccessTokenWeb, authRoles(["superadmin"])],
+  getAllAccounts
+);
+
+// Update user role or affiliate code (superadmin only)
+router.put(
+  "/superadmin/update/:userId",
+  [verifyAccessTokenWeb, authRoles(["superadmin"])],
+  updateUserRoleOrAffiliateCode
 );
 
 router.put("/update", verifyAccessTokenWeb, updateUserProfile);

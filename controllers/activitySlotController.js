@@ -98,7 +98,8 @@ exports.deleteActivitySlot = async (req, res) => {
 
     if (hasParticipants) {
       return res.status(400).json({
-        error: "Cannot delete slot because there are participants already joined",
+        error:
+          "Cannot delete slot because there are participants already joined",
         message: "ไม่สามารถลบรอบนี้ได้เนื่องจากมีผู้เข้าร่วมแล้ว",
       });
     }

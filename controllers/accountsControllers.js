@@ -948,28 +948,69 @@ const verifyRefreshTokenOTP = async (req, res) => {
 
 const getAllAccounts = async (req, res) => {
   let allUsers = await user.find();
-  let allUsersCount = await user.count();
-
-  //const accessToken = req.headers["authorization"].replace("Bearer ", "");
-
-  //await redis.sAdd(`Used_Access_Token_${req.user.userId}`, accessToken);
-
-  const newAccessToken = jwt.sign(
-    { userId: req.user.userId, name: req.user.name, email: req.user.email },
-    process.env.JWT_ACCESS_TOKEN_SECRET,
-    { expiresIn: process.env.ACCESS_TOKEN_EXPIRES }
-  );
-  redis.set(
-    `Last_Access_Token_${req.user.userId}_${req.headers["hardware-id"]}`,
-    newAccessToken
-  );
+  let allUsersCount = await user.countDocuments(); // ✅ แก้ตรงนี้
 
   await res.status(200).json({
     authenticated_user: req.user,
     status: "success",
     data: { count: allUsersCount, users: allUsers },
-    token: newAccessToken,
   });
+};
+
+const updateUserRoleOrAffiliateCode = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    let { role, affiliateCode } = req.body;
+
+    const userToUpdate = await user.findById(userId);
+    if (!userToUpdate) {
+      return res
+        .status(404)
+        .json({ status: "fail", message: "User not found" });
+    }
+
+    // ✅ Trim
+    if (typeof affiliateCode === "string") {
+      affiliateCode = affiliateCode.trim();
+    }
+
+    // ✅ ถ้ามี affiliateCode ต้องตรวจรูปแบบด้วย regex
+    if (affiliateCode) {
+      // อนุญาตเฉพาะตัวอักษรภาษาอังกฤษและตัวเลข + ขีดกลางและขีดล่าง (เหมาะสำหรับ URL)
+      const validPattern = /^[A-Za-z0-9_-]+$/;
+      if (!validPattern.test(affiliateCode)) {
+        return res.status(400).json({
+          status: "fail",
+          message:
+            "Affiliate code ต้องเป็นตัวอักษร/ตัวเลข และใช้ - หรือ _ ได้เท่านั้น ห้ามมีช่องว่างหรือเครื่องหมายพิเศษ",
+        });
+      }
+
+      // ✅ ตรวจว่าไม่ซ้ำกับ user คนอื่น (ไม่สน case)
+      const exists = await user.findOne({
+        _id: { $ne: userId },
+        affiliateCode: { $regex: new RegExp(`^${affiliateCode}$`, "i") },
+      });
+
+      if (exists) {
+        return res.status(400).json({
+          status: "fail",
+          message: "Affiliate code ซ้ำกับผู้ใช้งานคนอื่น",
+        });
+      }
+    }
+
+    // ✅ Update
+    if (role) userToUpdate.role = role;
+    if (affiliateCode) userToUpdate.affiliateCode = affiliateCode;
+
+    await userToUpdate.save();
+
+    res.status(200).json({ status: "success", message: "User updated" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ status: "error", message: "Server error" });
+  }
 };
 
 const deleteOneAccount = async (req, res) => {
@@ -1523,4 +1564,5 @@ module.exports = {
   updateAffiliateBankInfo,
   getAffiliateBankInfo,
   getAffiliateDiscount,
+  updateUserRoleOrAffiliateCode,
 };

@@ -98,7 +98,7 @@ const discountCodeSchema = new mongoose.Schema({
     type: [String],
     default: [],
   },
-  eventIdsInorExclude: { type: String, default: "exclude" },
+
   // จำกัดให้ใช้กับเฉพาะ event ที่กำหนด (ถ้าไม่ระบุ = ใช้ได้ทุก event)
   eventIds: {
     type: [mongoose.Schema.Types.ObjectId],
@@ -158,16 +158,20 @@ const discountCodeSchema = new mongoose.Schema({
     enum: ["all", "include", "exclude"],
     default: "all",
   },
-  allowedUserIds: [
+
+  allowedUserEmails: [
     {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
+      type: String,
+      lowercase: true,
+      trim: true,
     },
   ],
-  blockedUserIds: [
+
+  blockedUserEmails: [
     {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
+      type: String,
+      lowercase: true,
+      trim: true,
     },
   ],
 
