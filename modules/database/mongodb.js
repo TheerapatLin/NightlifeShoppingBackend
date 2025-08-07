@@ -79,6 +79,34 @@ const connectMongoDB = async () => {
       ];
 
       for (const { name, model } of schemasToSync) {
+        // 🔄 Fix swapped lat/lng for ActivitySlot documents before syncing indexes
+        if (name === "ActivitySlot") {
+          try {
+            const ActivitySlotModel = model;
+            const slots = await ActivitySlotModel.find({
+              "location.coordinates.0": { $gt: -90, $lt: 90 }, // latitude อยู่ผิดตำแหน่ง
+              "location.coordinates.1": { $gt: 90, $lt: 180 }, // longitude อยู่ผิดตำแหน่ง
+            });
+
+            for (const slot of slots) {
+              const [lat, lng] = slot.location.coordinates;
+              slot.location.coordinates = [lng, lat]; // สลับกลับ
+              await slot.save();
+            }
+
+            console.log(
+              chalk.blueBright(
+                `✅ Swapped coordinates for ${slots.length} activity slots`
+              )
+            );
+          } catch (fixErr) {
+            console.error(
+              "❌ Failed to fix coordinates in ActivitySlot:",
+              fixErr
+            );
+          }
+        }
+
         const result = await model.syncIndexes();
         console.log(chalk.green(`✅ Indexes synced for ${name}:`), result);
       }
