@@ -1,13 +1,14 @@
 // utils/fillAffiliateCode.js
 require("dotenv").config({
-  path: `.env.${process.env.NODE_ENV || "development"}`
+  path: `.env.${process.env.NODE_ENV || "development"}`,
 });
 
 const mongoose = require("mongoose");
 
 // 🔢 ใช้ตัวอักษร A-Z, a-z และตัวเลข 0-9
 const generateAffiliateCode = (length = 8) => {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  const chars =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
   let code = "";
   for (let i = 0; i < length; i++) {
     code += chars.charAt(Math.floor(Math.random() * chars.length));
@@ -40,7 +41,11 @@ const fillAffiliateCodes = async () => {
     const email = user?.user?.email || "(no email)";
     const currentCode = user.affiliateCode;
 
-    if (!currentCode || typeof currentCode !== "string" || currentCode.trim() === "") {
+    if (
+      !currentCode ||
+      typeof currentCode !== "string" ||
+      currentCode.trim() === ""
+    ) {
       let newCode;
       do {
         newCode = generateAffiliateCode();
@@ -62,4 +67,4 @@ const fillAffiliateCodes = async () => {
   await conn.close();
 };
 
-fillAffiliateCodes();
+module.exports = fillAffiliateCodes;

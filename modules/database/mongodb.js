@@ -27,7 +27,7 @@ const connectMongoDB = async () => {
 
   // ✅ Step: fill affiliateCode if needed
   try {
-    const fillAffiliateCodes = require("../../utils/fillAffiliateCode.internal.js");
+    const fillAffiliateCodes = require("../../utils/fillAffiliateCode.js");
     await fillAffiliateCodes(); // ✅ รันในขั้นตอนเชื่อมต่อ
   } catch (err) {
     console.error("❌ Failed to fill affiliateCode:", err);
