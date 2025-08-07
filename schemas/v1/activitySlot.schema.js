@@ -73,3 +73,13 @@ const activitySlotSchema = new Schema({
 
 const ActivitySlot = mongoose.model("ActivitySlot", activitySlotSchema);
 module.exports = ActivitySlot;
+
+// index ทั่วไป
+activitySlotSchema.index({ activityId: 1 });
+activitySlotSchema.index({ date: 1 });
+activitySlotSchema.index({ startTime: 1 });
+activitySlotSchema.index({ businessId: 1 });
+activitySlotSchema.index({ "participants.userId": 1 });
+
+// index พิเศษสำหรับ location
+activitySlotSchema.index({ location: "2dsphere" }); // สำหรับ geo queries

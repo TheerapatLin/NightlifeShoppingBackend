@@ -90,7 +90,7 @@ const UserSchema = new mongoose.Schema(
       accountNumber: { type: String },
       bankCode: { type: String }, // e.g., "SCB", "KTB", "OTHER"
       bankName: { type: String }, // e.g., "Siam Commercial Bank" or custom
-      contactEmail: {type: String},
+      contactEmail: { type: String },
       updatedAt: { type: Date, default: Date.now },
     },
     businessId: { type: String },
@@ -106,3 +106,10 @@ const UserSchema = new mongoose.Schema(
 
 const User = mongoose.model("User", UserSchema);
 module.exports = User;
+
+UserSchema.index({ "user.email": 1 }, { unique: true });
+UserSchema.index({ affiliateCode: 1 }, { unique: true });
+UserSchema.index({ "user.verified.email": 1 });
+UserSchema.index({ userType: 1, userData: 1 });
+UserSchema.index({ "loggedInDevices.deviceFingerprint": 1 });
+UserSchema.index({ "affiliateBankInfo.accountNumber": 1 });

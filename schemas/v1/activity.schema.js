@@ -126,3 +126,11 @@ const activitySchema = new Schema({
 
 const Activity = mongoose.model("Activity", activitySchema);
 module.exports = Activity;
+
+activitySchema.index({ businessId: 1 });
+activitySchema.index({ "creator.id": 1 });
+activitySchema.index({ category: 1 });
+activitySchema.index({ "privacy.visibility": 1 });
+activitySchema.index({ activityCode: 1 });
+activitySchema.index({ location: "2dsphere" });
+activitySchema.index({ tags: 1 });
