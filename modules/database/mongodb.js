@@ -31,27 +31,50 @@ const connectMongoDB = async () => {
       console.log(chalk.cyan("🔄 Syncing indexes..."));
 
       // 🔽 เพิ่ม schema ที่คุณต้องการ sync index ที่นี่
+      const path = require("path");
+
       const schemasToSync = [
         {
           name: "ActivityOrder",
-          model: require("../schemas/v1/activityOrder.schema.js"),
+          model: require(path.resolve(
+            __dirname,
+            "../../schemas/v1/activityOrder.schema.js"
+          )),
         },
-        { name: "User", model: require("../schemas/v1/user.schema.js") },
+        {
+          name: "User",
+          model: require(path.resolve(
+            __dirname,
+            "../../schemas/v1/user.schema.js"
+          )),
+        },
         {
           name: "DiscountCode",
-          model: require("../schemas/v1/discountCode.schema.js"),
+          model: require(path.resolve(
+            __dirname,
+            "../../schemas/v1/discountCode.schema.js"
+          )),
         },
         {
           name: "ActivitySlot",
-          model: require("../schemas/v1/activitySlot.schema.js"),
+          model: require(path.resolve(
+            __dirname,
+            "../../schemas/v1/activitySlot.schema.js"
+          )),
         },
         {
           name: "Activity",
-          model: require("../schemas/v1/activity.schema.js"),
+          model: require(path.resolve(
+            __dirname,
+            "../../schemas/v1/activity.schema.js"
+          )),
         },
         {
           name: "AffiliateTracking",
-          model: require("../schemas/v1/affiliateTracking.schema.js"),
+          model: require(path.resolve(
+            __dirname,
+            "../../schemas/v1/affiliateTracking.schema.js"
+          )),
         },
       ];
 
