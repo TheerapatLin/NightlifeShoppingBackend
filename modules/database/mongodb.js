@@ -26,12 +26,12 @@ const connectMongoDB = async () => {
     });
 
   // ✅ Step: fill affiliateCode if needed
-  try {
-    const fillAffiliateCodes = require("../../utils/fillAffiliateCode.js");
-    await fillAffiliateCodes(); // ✅ รันในขั้นตอนเชื่อมต่อ
-  } catch (err) {
-    console.error("❌ Failed to fill affiliateCode:", err);
-  }
+  // try {
+  //   const fillAffiliateCodes = require("../../utils/fillAffiliateCode.js");
+  //   await fillAffiliateCodes(); // ✅ รันในขั้นตอนเชื่อมต่อ
+  // } catch (err) {
+  //   console.error("❌ Failed to fill affiliateCode:", err);
+  // }
 
   // ✅ Sync indexes ถ้าเปิด flag
   if (SHOULD_SYNC_INDEXES === "true") {
