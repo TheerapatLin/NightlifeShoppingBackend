@@ -137,3 +137,11 @@ const activityOrderSchema = new mongoose.Schema(
 const ActivityOrder = mongoose.model("ActivityOrder", activityOrderSchema);
 
 module.exports = ActivityOrder;
+
+activityOrderSchema.index({ userId: 1, createdAt: -1 });
+activityOrderSchema.index({ status: 1, createdAt: -1 });
+activityOrderSchema.index({ activityId: 1 });
+activityOrderSchema.index({ paidAt: -1 });
+activityOrderSchema.index({ affiliateUserId: 1 });
+activityOrderSchema.index({ discountCodeId: 1 });
+activityOrderSchema.index({ paymentIntentId: 1 }, { unique: true });
