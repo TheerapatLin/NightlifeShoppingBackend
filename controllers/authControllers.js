@@ -198,7 +198,8 @@ const forgotPassword = async (req, res) => {
     }, { EX: 600 }); // TTL 10 นาที
     await redis.expire(email, 600); // backup ซ้ำอีกชั้น
 
-    const resetLink = `${process.env.BASE_URL}/reset-password?email=${email}&ref=${resetRef}&token=${resetToken}`;
+    const resetLink = `${process.env.FRONTEND_URL}/reset-password?email=${email}&ref=${resetRef}&token=${resetToken}`;
+
 
     const capitalizedAppName =
       process.env.DATABASE_NAME.charAt(0).toUpperCase() +
