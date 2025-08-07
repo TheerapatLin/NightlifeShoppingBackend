@@ -42,8 +42,6 @@ const generateAffiliateCode = async (length = 8) => {
 const DiscountCode = require("../schemas/v1/discountCode.schema");
 
 // --------------------------------------------- webhookHandler QM --------------------------------------------- //
-
-//เมื่อสถานะการจ่ายถูกส่งกลับมาจาก Stripe
 exports.webhookHandlerService = async (event) => {
   const stripe = getStripeInstance();
   switch (event.type) {
@@ -51,13 +49,13 @@ exports.webhookHandlerService = async (event) => {
       const paymentIntent = event.data.object;
 
       // ✅ ป้องกันซ้ำจาก Stripe Retry
-      const lockKey = `stripe-webhook-lock:${paymentIntent.id}:${event.type}`;
+      const lockKey = `stripe-webhook-lock:${paymentIntent.id}`;
       const locked = await redis.get(lockKey);
       if (locked) {
         console.log("⚠️ Duplicate processing blocked via Redis lock");
         return { status: "200", message: "Duplicate blocked" };
       }
-      await redis.set(lockKey, "locked", "EX", 90);
+      await redis.set(lockKey, "locked", "EX", 90); // ล็อกไว้ 90 วินาที
 
       const metadata = paymentIntent.metadata || {};
 
