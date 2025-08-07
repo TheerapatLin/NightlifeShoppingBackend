@@ -26,10 +26,11 @@ const fillAffiliateCodes = async () => {
 
   // ✅ เชื่อมต่อ Mongo
   const conn = await mongoose.createConnection(dbUri).asPromise();
-  const db = conn.useDb("nightlife");
+  const dbName = process.env.DATABASE_NAME;
+  const db = conn.useDb(dbName);
   const usersCol = db.collection("users");
 
-  console.log("✅ Connected to MongoDB (nightlife)");
+  console.log(`✅ Connected to MongoDB ${dbName}`);
 
   // ✅ ดึง users ทั้งหมด
   const allUsers = await usersCol.find({}).toArray();
