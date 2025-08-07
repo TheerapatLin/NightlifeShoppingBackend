@@ -9,6 +9,8 @@
     "dev:nl": "cross-env NODE_ENV=development dotenv -e .env-nl nodemon ./bin/www"
   },
   "dependencies": {
+    "@bull-board/api": "^6.12.0",
+    "@bull-board/express": "^6.12.0",
     "ali-oss": "^6.18.0",
     "apicache": "^1.6.3",
     "axios": "^1.4.0",
@@ -22,6 +24,7 @@
     "dotenv": "^16.4.5",
     "ejs": "~3.1.9",
     "express": "~4.18.2",
+    "express-basic-auth": "^1.2.1",
     "express-rate-limit": "^6.9.0",
     "express-session": "^1.17.3",
     "google-auth-library": "^9.2.0",

@@ -1,3 +1,4 @@
+//app.js
 require("dotenv").config();
 const createError = require("http-errors");
 const express = require("express");
@@ -8,6 +9,7 @@ const chalk = require("chalk");
 const cors = require("cors");
 const passport = require("passport");
 const sessions = require("express-session");
+const basicAuth = require('express-basic-auth');
 
 //? Databases
 const connectMongoDB = require("./modules/database/mongodb");
@@ -154,7 +156,9 @@ const v1AuthRouter = require("./routes/v1/authRoutes");
 app.use("/api/v1/auth", v1AuthRouter);
 
 //? Order Endpoints
-const { router: v1OrderRouter } = require("./routes/v1/activityOrderRoutes")(io);
+const { router: v1OrderRouter } = require("./routes/v1/activityOrderRoutes")(
+  io
+);
 app.use("/api/v1/activity-order", v1OrderRouter);
 
 //? Account Endpoints
@@ -203,8 +207,17 @@ app.use("/api/v1/discount-code", discountCodeRoutes);
 const activitySlotRoutes = require("./routes/v1/activitySlotRoutes");
 app.use("/api/v1/activity-slot", activitySlotRoutes);
 
-const {serverAdapter} = require('./queues/dashboard')
-app.use('/admin/queues',serverAdapter.getRouter())
+const { serverAdapter } = require("./queues/dashboard");
+app.use(
+  "/admin/queues",
+  basicAuth({
+    users: {
+      [process.env.BULLBOARD_USER]: process.env.BULLBOARD_PASS,
+    },
+    challenge: true,
+  }),
+  serverAdapter.getRouter()
+);
 
 //? Webhook
 const v1WebhookRouter = require("./routes/v1/webhookRoutes");

@@ -22,7 +22,8 @@ const {
   sendOrderBookedEmailQueue,
   sendOrderBookedEmailQueueEvent,
   jobOptions
-} = require('../queues/producer')
+} = require('../queues/queueInstances'); 
+
 
 // generate affiliateCode แบบ 8 ตัว อังกฤษ+ตัวเลข
 const generateAffiliateCode = async (length = 8) => {
