@@ -15,10 +15,7 @@ const UserSchema = new mongoose.Schema(
         match: /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}$/,
       },
       phone: { type: String },
-      password: {
-        type: String,
-        default: null,
-      },
+      password: { type: String, default: null },
       token: { type: String },
       activated: { type: Boolean, default: false },
       verified: {
@@ -60,6 +57,7 @@ const UserSchema = new mongoose.Schema(
       enum: ["RegularUserData", "OrganizationUserData"],
     },
     affiliateCode: { type: String, unique: true, required: true },
+    // NOTE: คงชื่อเดิมไว้ก่อนเพื่อไม่ให้กระทบโค้ดส่วนอื่น
     affiliateAvaiability: { type: Boolean, default: false },
     affiliateSettings: [
       {
@@ -76,7 +74,6 @@ const UserSchema = new mongoose.Schema(
           default: "fixed",
         },
         enabled: { type: Boolean, default: true },
-        // ✅ NEW: specify whether affiliate budget applies "per_order" or "per_person"
         budgetApplyMode: {
           type: String,
           enum: ["per_order", "per_person"],
@@ -84,7 +81,6 @@ const UserSchema = new mongoose.Schema(
         },
       },
     ],
-    // ✅ New field for affiliate bank info
     affiliateBankInfo: {
       accountName: { type: String },
       accountNumber: { type: String },
@@ -104,13 +100,58 @@ const UserSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+/** =======================
+ *  Hooks
+ *  ======================= */
+// ✅ ทำ email เป็น lower-case ก่อนบันทึก (กันซ้ำไม่สนตัวพิมพ์)
+UserSchema.pre("save", function (next) {
+  if (this.user?.email) {
+    this.user.email = this.user.email.toLowerCase();
+  }
+  next();
+});
+UserSchema.pre("findOneAndUpdate", function (next) {
+  const update = this.getUpdate() || {};
+  // รองรับทั้ง $set.user.email และ user.email
+  if (update.$set?.["user.email"]) {
+    update.$set["user.email"] = String(update.$set["user.email"]).toLowerCase();
+  } else if (update["user.email"]) {
+    update["user.email"] = String(update["user.email"]).toLowerCase();
+  }
+  this.setUpdate(update);
+  next();
+});
+
+/** =======================
+ *  Indexes
+ *  ======================= */
 UserSchema.index({ "user.email": 1 }, { unique: true });
 UserSchema.index({ affiliateCode: 1 }, { unique: true });
+
+// เรียง/ค้นหาตามชื่อ อีเมล โรล
+UserSchema.index({ "user.name": 1 });
+UserSchema.index({ role: 1 });
+
+// ✅ สำคัญสำหรับ pagination/sort (ใหม่→เก่า)
+UserSchema.index({ createdAt: -1 });
+
+// ✅ ถ้ากรอง role บ่อย + เรียงตาม createdAt ให้เร็วขึ้น
+UserSchema.index({ role: 1, createdAt: -1 });
+
+// อื่น ๆ ตามการใช้งานเดิม
 UserSchema.index({ "user.verified.email": 1 });
 UserSchema.index({ userType: 1, userData: 1 });
 UserSchema.index({ "loggedInDevices.deviceFingerprint": 1 });
-UserSchema.index({ "affiliateBankInfo.accountNumber": 1 });
+
+// ✅ ปรับเป็น partial index เพื่อลดภาระ หากไม่มี accountNumber
+UserSchema.index(
+  { "affiliateBankInfo.accountNumber": 1 },
+  {
+    partialFilterExpression: {
+      "affiliateBankInfo.accountNumber": { $type: "string", $ne: "" },
+    },
+  }
+);
 
 const User = mongoose.model("User", UserSchema);
 module.exports = User;
-

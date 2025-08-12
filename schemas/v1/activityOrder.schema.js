@@ -75,6 +75,11 @@ const activityOrderSchema = new mongoose.Schema(
       default: null,
     },
 
+    discountCodeUsed: {
+      type: String,
+      default: "",
+    },
+
     // ID ของ affiliate ผู้ที่แชร์ลิงก์แล้วมีคนจ่ายเงิน
     affiliateUserId: {
       type: mongoose.Schema.Types.ObjectId,

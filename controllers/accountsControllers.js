@@ -946,15 +946,78 @@ const verifyRefreshTokenOTP = async (req, res) => {
   }
 };
 
+// controllers/... (ฟังก์ชันเดิมที่เราแก้ pagination ไว้)
 const getAllAccounts = async (req, res) => {
-  let allUsers = await user.find();
-  let allUsersCount = await user.countDocuments(); // ✅ แก้ตรงนี้
+  try {
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const rawLimit = parseInt(req.query.limit, 10) || 20;
+    const limit = Math.min(Math.max(rawLimit, 1), 100);
 
-  await res.status(200).json({
-    authenticated_user: req.user,
-    status: "success",
-    data: { count: allUsersCount, users: allUsers },
-  });
+    const sortKey = req.query.sortKey || "createdAt";
+    const sortOrder = req.query.sortOrder === "asc" ? 1 : -1;
+
+    const sortMap = {
+      name: "user.name",
+      email: "user.email",
+      role: "role",
+      createdAt: "createdAt",
+    };
+    const sortField = sortMap[sortKey] || "createdAt";
+    const sortOption = { [sortField]: sortOrder };
+
+    // ✅ NEW: filters
+    const filter = {};
+
+    // roles (comma-separated). ถ้ามี 'all' หรือค่าว่าง -> ไม่ฟิลเตอร์
+    if (req.query.roles) {
+      const rolesArr = String(req.query.roles)
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const hasAll = rolesArr.some((r) => r.toLowerCase() === "all");
+      if (!hasAll && rolesArr.length > 0) {
+        filter.role = { $in: rolesArr };
+      }
+    }
+
+    // q: ค้นชื่อ/อีเมล (case-insensitive)
+    const q = (req.query.q || "").trim();
+    if (q) {
+      // ถ้าดูเป็นอีเมล ให้เน้นที่อีเมลก่อน
+      const emailLike = q.includes("@");
+      const regex = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+      if (emailLike) {
+        filter["user.email"] = regex;
+      } else {
+        filter.$or = [{ "user.name": regex }, { "user.email": regex }];
+      }
+    }
+
+    const skip = (page - 1) * limit;
+
+    const [count, users] = await Promise.all([
+      user.countDocuments(filter),
+      user.find(filter).sort(sortOption).skip(skip).limit(limit),
+    ]);
+
+    return res.status(200).json({
+      authenticated_user: req.user,
+      status: "success",
+      data: {
+        count,
+        page,
+        totalPages: Math.ceil(count / limit),
+        limit,
+        users,
+      },
+    });
+  } catch (err) {
+    console.error("getAllAccounts error:", err);
+    return res.status(500).json({
+      status: "error",
+      message: "ไม่สามารถดึงรายการผู้ใช้ได้",
+    });
+  }
 };
 
 const updateUserRoleOrAffiliateCode = async (req, res) => {
