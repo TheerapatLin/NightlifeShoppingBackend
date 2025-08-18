@@ -134,6 +134,45 @@ const venueSchema = new Schema(
     // แท็กและบริการเสริม
     isBookable: { type: Boolean, default: false },
     linkWhenUnbookable: { type: String, default: "" },
+    
+    // ระบบโต๊ะและการจอง
+    tableManagement: {
+      enabled: { type: Boolean, default: false },
+      totalTables: { type: Number, default: 0 },
+      totalCapacity: { type: Number, default: 0 },
+      floors: { type: Number, default: 1 },
+      sections: [{ type: String }], // เช่น ['main-hall', 'terrace', 'vip']
+      defaultReservationDuration: { type: Number, default: 120 }, // นาที
+      advanceBookingDays: { type: Number, default: 30 }, // วันล่วงหน้า
+      requiresDeposit: { type: Boolean, default: false },
+      depositPercentage: { type: Number, default: 0 }, // %
+      cancellationPolicy: {
+        allowCancellation: { type: Boolean, default: true },
+        cancellationDeadlineHours: { type: Number, default: 24 },
+        cancellationFeePercentage: { type: Number, default: 0 }
+      },
+      operatingHours: {
+        monday: { start: String, end: String, closed: { type: Boolean, default: false } },
+        tuesday: { start: String, end: String, closed: { type: Boolean, default: false } },
+        wednesday: { start: String, end: String, closed: { type: Boolean, default: false } },
+        thursday: { start: String, end: String, closed: { type: Boolean, default: false } },
+        friday: { start: String, end: String, closed: { type: Boolean, default: false } },
+        saturday: { start: String, end: String, closed: { type: Boolean, default: false } },
+        sunday: { start: String, end: String, closed: { type: Boolean, default: false } }
+      },
+      timeSlots: [{
+        name: { type: String }, // เช่น 'lunch', 'dinner', 'happy-hour'
+        startTime: { type: String }, // เช่น '11:00'
+        endTime: { type: String }, // เช่น '14:00'
+        duration: { type: Number }, // นาที
+        isActive: { type: Boolean, default: true }
+      }]
+    },
+
+    // อ้างอิง event / โต๊ะ
+    eventListID: [{ type: String }],
+    tableListID: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Table' }],
+    
     // แท็กและบริการเสริม
     tags: [{ type: String, index: true }],
     amenities: [{ type: String }],
