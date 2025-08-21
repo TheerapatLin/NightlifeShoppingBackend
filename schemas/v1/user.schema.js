@@ -153,5 +153,78 @@ UserSchema.index(
   }
 );
 
+// ===============================
+// VIRTUAL FIELDS
+// ===============================
+
+// Virtual field สำหรับดูระดับปัจจุบัน (รวม subscription)
+UserSchema.virtual('currentLevel').get(async function() {
+  const UserSubscription = require('./userSubscription.schema');
+  
+  try {
+    const activeSubscription = await UserSubscription.findActiveSubscription(this._id);
+    
+    if (activeSubscription && activeSubscription.isActive()) {
+      return {
+        level: activeSubscription.subscriptionType,
+        source: 'subscription',
+        expiresAt: activeSubscription.endDate,
+        subscriptionId: activeSubscription._id
+      };
+    }
+    
+    return {
+      level: 'regular',
+      source: 'default',
+      expiresAt: null,
+      subscriptionId: null
+    };
+  } catch (error) {
+    console.error('Error getting current level:', error);
+    return {
+      level: 'regular',
+      source: 'default',
+      expiresAt: null,
+      subscriptionId: null
+    };
+  }
+});
+
+// Instance method สำหรับดูระดับปัจจุบัน
+UserSchema.methods.getCurrentLevel = async function() {
+  const UserSubscription = require('./userSubscription.schema');
+  
+  try {
+    const activeSubscription = await UserSubscription.findActiveSubscription(this._id);
+    
+    if (activeSubscription && activeSubscription.isActive()) {
+      return {
+        level: activeSubscription.subscriptionType,
+        source: 'subscription',
+        expiresAt: activeSubscription.endDate,
+        daysRemaining: activeSubscription.getDaysRemaining(),
+        subscriptionId: activeSubscription._id
+      };
+    }
+    
+    return {
+      level: 'regular',
+      source: 'default',
+      expiresAt: null,
+      daysRemaining: null,
+      subscriptionId: null
+    };
+  } catch (error) {
+    console.error('Error getting current level:', error);
+    return {
+      level: 'regular',
+      source: 'default',
+      expiresAt: null,
+      daysRemaining: null,
+      subscriptionId: null
+    };
+  }
+};
+
 const User = mongoose.model("User", UserSchema);
 module.exports = User;

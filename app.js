@@ -207,6 +207,16 @@ app.use("/api/v1/discount-code", discountCodeRoutes);
 const activitySlotRoutes = require("./routes/v1/activitySlotRoutes");
 app.use("/api/v1/activity-slot", activitySlotRoutes);
 
+//? subscriptionRoutes
+const subscriptionRoutes = require("./routes/v1/subscriptionRoutes");
+app.use("/api/v1/subscription", subscriptionRoutes);
+
+//? subscription cron jobs
+const { startAllSubscriptionJobs } = require("./jobs/subscriptionJobs");
+if (process.env.NODE_ENV !== 'test') {
+  startAllSubscriptionJobs();
+}
+
 const { serverAdapter } = require("./queues/dashboard");
 app.use(
   "/admin/queues",
