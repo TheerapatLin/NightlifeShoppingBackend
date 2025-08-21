@@ -1,7 +1,7 @@
 // jobs/subscriptionJobs.js
 const cron = require('node-cron');
 const { 
-  cleanupExpiredSubscriptions, 
+  queueCleanupExpiredSubscriptions, 
   notifyExpiringSubscriptions,
   getSubscriptionStats 
 } = require('../utils/subscriptionUtils');
@@ -18,7 +18,7 @@ const startExpiredSubscriptionCleanup = () => {
   cron.schedule('0 2 * * *', async () => {
     console.log('🔄 Starting expired subscription cleanup...');
     try {
-      await cleanupExpiredSubscriptions();
+      await queueCleanupExpiredSubscriptions();
       console.log('✅ Expired subscription cleanup completed');
     } catch (error) {
       console.error('❌ Error in expired subscription cleanup:', error);
@@ -100,7 +100,7 @@ const startAllSubscriptionJobs = () => {
 const runImmediateCleanup = async () => {
   console.log('🔄 Running immediate subscription cleanup...');
   try {
-    await cleanupExpiredSubscriptions();
+    await queueCleanupExpiredSubscriptions();
     console.log('✅ Immediate cleanup completed');
   } catch (error) {
     console.error('❌ Error in immediate cleanup:', error);

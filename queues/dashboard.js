@@ -4,7 +4,9 @@ const { ExpressAdapter } = require('@bull-board/express');
 
 const {
     webhookHandlerQueue,
-    sendOrderBookedEmailQueue
+    sendOrderBookedEmailQueue,
+    subscriptionQueue,
+    emailNotificationQueue
 } = require('./producer');
 
 const serverAdapter = new ExpressAdapter();
@@ -14,12 +16,14 @@ createBullBoard({
     queues: [
         new BullMQAdapter(webhookHandlerQueue),
         new BullMQAdapter(sendOrderBookedEmailQueue),
+        new BullMQAdapter(subscriptionQueue),
+        new BullMQAdapter(emailNotificationQueue),
     ],
 
     serverAdapter,
     options: {
         uiConfig: {
-            boardTitle: 'My BOARD',
+            boardTitle: 'Healworld Queue Dashboard',
             boardLogo: {
                 path: 'https://cdn.my-domain.com/logo.png',
                 width: '100px',

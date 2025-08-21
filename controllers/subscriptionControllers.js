@@ -2,6 +2,7 @@
 const UserSubscription = require("../schemas/v1/userSubscription.schema");
 const User = require("../schemas/v1/user.schema");
 const RegularUserData = require("../schemas/v1/userData/regularUserData.schema");
+const { queueSubscriptionEvent } = require("../utils/subscriptionUtils");
 
 // ===============================
 // SUBSCRIPTION MANAGEMENT
@@ -61,6 +62,15 @@ const purchaseSubscription = async (req, res) => {
         await existingSubscription.save();
       }
 
+      // ✅ Queue subscription extended event
+      const user = await User.findById(userId);
+      await queueSubscriptionEvent('subscription-extended', {
+        subscription: existingSubscription,
+        user,
+        previousEndDate: existingSubscription.originalEndDate,
+        extensionDetails: { billingCycle, price }
+      });
+
       return res.status(200).json({
         success: true,
         message: `${subscriptionType} subscription extended successfully`,
@@ -82,6 +92,14 @@ const purchaseSubscription = async (req, res) => {
         purchaseSource: req.headers['user-agent'] || 'unknown',
         originalLevel: 'regular'
       }
+    });
+
+    // ✅ Queue subscription purchased event
+    const user = await User.findById(userId);
+    await queueSubscriptionEvent('subscription-purchased', {
+      subscription: newSubscription,
+      user,
+      purchaseDetails: { subscriptionType, billingCycle, price }
     });
 
     res.status(201).json({
@@ -198,6 +216,15 @@ const cancelSubscription = async (req, res) => {
     activeSubscription.status = 'cancelled';
     activeSubscription.autoRenew = false;
     await activeSubscription.save();
+
+    // ✅ Queue subscription cancelled event
+    const user = await User.findById(userId);
+    await queueSubscriptionEvent('subscription-cancelled', {
+      subscription: activeSubscription,
+      user,
+      cancellationDate: new Date(),
+      daysRemaining: activeSubscription.getDaysRemaining()
+    });
 
     res.status(200).json({
       success: true,

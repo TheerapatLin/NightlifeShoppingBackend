@@ -28,11 +28,31 @@ const sendOrderBookedEmailQueueEvent = new QueueEvents(
   { connection }
 );
 
+// ✅ Subscription Queue - สำหรับจัดการ subscription lifecycle
+const subscriptionQueue = new Queue("subscription-queue", {
+  connection,
+});
+const subscriptionQueueEvent = new QueueEvents("subscription-queue", {
+  connection,
+});
+
+// ✅ Email Notification Queue - สำหรับส่ง email notifications ทุกประเภท
+const emailNotificationQueue = new Queue("email-notification-queue", {
+  connection,
+});
+const emailNotificationQueueEvent = new QueueEvents("email-notification-queue", {
+  connection,
+});
+
 module.exports = {
   webhookHandlerQueue,
   webhookHandlerQueueEvent,
   sendOrderBookedEmailQueue,
   sendOrderBookedEmailQueueEvent,
+  subscriptionQueue,
+  subscriptionQueueEvent,
+  emailNotificationQueue,
+  emailNotificationQueueEvent,
   jobOptions,
-  connection, // ✅ << ใส่อันนี้เข้าไป
+  connection,
 };

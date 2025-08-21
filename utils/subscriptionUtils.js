@@ -253,7 +253,7 @@ const getSubscriptionStats = async () => {
 };
 
 /**
- * ส่ง notification เมื่อ subscription ใกล้หมดอายุ
+ * ส่ง notification เมื่อ subscription ใกล้หมดอายุ (ใช้ Queue)
  * @param {number} daysBeforeExpiry - จำนวนวันก่อนหมดอายุ
  */
 const notifyExpiringSubscriptions = async (daysBeforeExpiry = 7) => {
@@ -271,38 +271,53 @@ const notifyExpiringSubscriptions = async (daysBeforeExpiry = 7) => {
 
     console.log(`Found ${expiringSubscriptions.length} subscriptions expiring in ${daysBeforeExpiry} days`);
 
-    // ส่ง email notification
-    const { sendSubscriptionExpiryEmail } = require('../modules/email/sendSubscriptionExpiryEmail');
+    // ✅ ใช้ Queue แทนส่ง email ตรง
+    const { emailNotificationQueue } = require('../queues/queueInstances');
     
-    let successCount = 0;
+    let queuedCount = 0;
     let failCount = 0;
     
     for (const subscription of expiringSubscriptions) {
       try {
         const daysRemaining = Math.ceil((subscription.endDate - new Date()) / (1000 * 60 * 60 * 24));
         
-        console.log(`Sending notification to ${subscription.userId.user.email} - ${daysRemaining} days remaining`);
+        console.log(`Queuing notification for ${subscription.userId.user.email} - ${daysRemaining} days remaining`);
         
-        const emailSent = await sendSubscriptionExpiryEmail(subscription, daysRemaining);
+        // ✅ เพิ่ม job ลง queue แทนส่ง email ตรง
+        await emailNotificationQueue.add(
+          `subscription-expiry-${subscription._id}-${Date.now()}`,
+          {
+            type: 'subscription-expiry-warning',
+            data: {
+              subscription,
+              daysRemaining
+            }
+          },
+          {
+            priority: daysRemaining <= 1 ? 10 : 7, // urgent ถ้าเหลือ 1 วัน
+            delay: Math.random() * 5000, // random delay 0-5 วินาที เพื่อกระจาย load
+            attempts: 3,
+            backoff: {
+              type: 'exponential',
+              delay: 2000,
+            }
+          }
+        );
         
-        if (emailSent) {
-          successCount++;
-        } else {
-          failCount++;
-        }
-      } catch (emailError) {
-        console.error(`Failed to send email to ${subscription.userId.user.email}:`, emailError);
+        queuedCount++;
+      } catch (queueError) {
+        console.error(`Failed to queue email for ${subscription.userId.user.email}:`, queueError);
         failCount++;
       }
     }
     
-    console.log(`📧 Email notification summary: ${successCount} sent, ${failCount} failed`);
+    console.log(`📧 Email notification queue summary: ${queuedCount} queued, ${failCount} failed to queue`);
 
     return {
       subscriptions: expiringSubscriptions,
-      emailStats: {
+      queueStats: {
         total: expiringSubscriptions.length,
-        success: successCount,
+        queued: queuedCount,
         failed: failCount
       }
     };
@@ -312,11 +327,92 @@ const notifyExpiringSubscriptions = async (daysBeforeExpiry = 7) => {
   }
 };
 
+/**
+ * Queue subscription lifecycle events
+ */
+const queueSubscriptionEvent = async (eventType, data) => {
+  try {
+    const { subscriptionQueue } = require('../queues/queueInstances');
+    
+    await subscriptionQueue.add(
+      `subscription-${eventType}-${Date.now()}`,
+      {
+        type: eventType,
+        data
+      },
+      {
+        priority: getPriorityForEvent(eventType),
+        attempts: 3,
+        backoff: {
+          type: 'exponential',
+          delay: 2000,
+        }
+      }
+    );
+    
+    console.log(`✅ Queued subscription event: ${eventType}`);
+    return true;
+  } catch (error) {
+    console.error(`❌ Failed to queue subscription event ${eventType}:`, error);
+    return false;
+  }
+};
+
+/**
+ * Get priority for subscription events
+ */
+const getPriorityForEvent = (eventType) => {
+  const priorities = {
+    'subscription-purchased': 9,
+    'subscription-extended': 8,
+    'subscription-cancelled': 7,
+    'subscription-expired': 6,
+    'cleanup-expired': 5
+  };
+  
+  return priorities[eventType] || 5;
+};
+
+/**
+ * Queue cleanup expired subscriptions (ใช้แทน cleanupExpiredSubscriptions ตรงๆ)
+ */
+const queueCleanupExpiredSubscriptions = async () => {
+  try {
+    // ทำ cleanup ก่อน
+    const result = await UserSubscription.updateMany(
+      { 
+        status: 'active', 
+        endDate: { $lt: new Date() } 
+      },
+      { 
+        $set: { status: 'expired' } 
+      }
+    );
+
+    console.log(`Updated ${result.modifiedCount} expired subscriptions`);
+    
+    // แล้วค่อย queue event สำหรับ post-processing
+    if (result.modifiedCount > 0) {
+      await queueSubscriptionEvent('cleanup-expired', {
+        cleanupCount: result.modifiedCount,
+        cleanupDate: new Date()
+      });
+    }
+    
+    return result;
+  } catch (error) {
+    console.error('Error cleaning up expired subscriptions:', error);
+    throw error;
+  }
+};
+
 module.exports = {
   getUserCurrentLevel,
   checkUserPermission,
   requireSubscriptionLevel,
   cleanupExpiredSubscriptions,
+  queueCleanupExpiredSubscriptions,
   getSubscriptionStats,
-  notifyExpiringSubscriptions
+  notifyExpiringSubscriptions,
+  queueSubscriptionEvent
 };
