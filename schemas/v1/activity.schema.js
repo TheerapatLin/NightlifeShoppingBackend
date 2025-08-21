@@ -29,6 +29,13 @@ const scheduleSchema = new Schema({
   dayString: { type: String, required: true }, // เช่น "monday,wednesday,friday"
   detail: { type: String, default: "" }, // รายละเอียดของกิจกรรมในวันนั้น
   cost: { type: Number, default: 0 }, // ค่าใช้จ่าย
+  // ✅ Subscription pricing สำหรับ schedule
+  subscriptionPricing: {
+    regular: { type: Number, default: 0 },
+    premium: { type: Number, default: 0 },
+    platinum: { type: Number, default: 0 },
+    enabled: { type: Boolean, default: false },
+  },
   startTime: { type: Date, required: true }, // เวลาเริ่มในวันนั้น
   endTime: { type: Date, required: true }, // เวลาสิ้นสุดในวันนั้น
 });
@@ -57,6 +64,13 @@ const activitySchema = new Schema({
   chatRoomId: { type: mongoose.Schema.Types.ObjectId, ref: "ChatRoom" },
   category: { type: String, default: "healworld" },
   cost: { type: Number, default: 0 },
+  // ✅ Subscription pricing - ราคาสำหรับระดับสมาชิกต่างๆ
+  subscriptionPricing: {
+    regular: { type: Number, default: 0 }, // ราคาปกติ (เหมือน cost เดิม)
+    premium: { type: Number, default: 0 }, // ราคาสำหรับ premium members
+    platinum: { type: Number, default: 0 }, // ราคาสำหรับ platinum members
+    enabled: { type: Boolean, default: false }, // เปิด/ปิดระบบราคาแบบ subscription
+  },
   certificate: {
     provided: { type: Boolean, default: false },
     hours: { type: Number, default: 0 },

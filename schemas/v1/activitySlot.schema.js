@@ -31,6 +31,13 @@ const activitySlotSchema = new Schema({
     description: String,
   },
   cost: { type: Number, default: 0 },
+  // ✅ Subscription pricing - ราคาสำหรับระดับสมาชิกต่างๆ
+  subscriptionPricing: {
+    regular: { type: Number, default: 0 }, // ราคาปกติ (เหมือน cost เดิม)
+    premium: { type: Number, default: 0 }, // ราคาสำหรับ premium members
+    platinum: { type: Number, default: 0 }, // ราคาสำหรับ platinum members
+    enabled: { type: Boolean, default: false }, // เปิด/ปิดระบบราคาแบบ subscription
+  },
   participantLimit: { type: Number, default: 10 },
   requireRequestToJoin: { type: Boolean, default: true },
   notes: { type: String, default: "" },
