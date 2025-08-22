@@ -208,8 +208,8 @@ const activitySlotRoutes = require("./routes/v1/activitySlotRoutes");
 app.use("/api/v1/activity-slot", activitySlotRoutes);
 
 //? subscriptionRoutes
-const subscriptionRoutes = require("./routes/v1/subscriptionRoutes");
-app.use("/api/v1/subscription", subscriptionRoutes);
+// const subscriptionRoutes = require("./routes/v1/subscriptionRoutes"); // ปิดชั่วคราว
+// app.use("/api/v1/subscription", subscriptionRoutes); // ปิดชั่วคราว
 
 //? subscription cron jobs
 const { startAllSubscriptionJobs } = require("./jobs/subscriptionJobs");

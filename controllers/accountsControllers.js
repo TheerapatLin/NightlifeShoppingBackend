@@ -1000,6 +1000,29 @@ const getAllAccounts = async (req, res) => {
       user.find(filter).sort(sortOption).skip(skip).limit(limit),
     ]);
 
+    // ✅ เพิ่ม currentLevel ให้กับแต่ละ user
+    const usersWithLevels = await Promise.all(
+      users.map(async (userDoc) => {
+        const userObj = userDoc.toObject();
+        
+        try {
+          // ใช้ virtual field currentLevel
+          const currentLevel = await userDoc.currentLevel;
+          userObj.currentLevel = currentLevel;
+        } catch (error) {
+          console.error(`Error getting level for user ${userDoc._id}:`, error);
+          userObj.currentLevel = {
+            level: 'regular',
+            source: 'default',
+            expiresAt: null,
+            subscriptionId: null
+          };
+        }
+        
+        return userObj;
+      })
+    );
+
     return res.status(200).json({
       authenticated_user: req.user,
       status: "success",
@@ -1008,7 +1031,7 @@ const getAllAccounts = async (req, res) => {
         page,
         totalPages: Math.ceil(count / limit),
         limit,
-        users,
+        users: usersWithLevels,
       },
     });
   } catch (err) {

@@ -31,7 +31,7 @@ const {
 } = require("../../middlewares/auth");
 
 //? Register
-router.post("/register", registerRateLimiter, register);
+// router.post("/register", registerRateLimiter, register); // ปิดชั่วคราวเพื่อแก้ไข error
 
 
 //? Dev:Oreq Forgot Password

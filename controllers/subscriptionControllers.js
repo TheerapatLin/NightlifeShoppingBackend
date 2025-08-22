@@ -12,7 +12,7 @@ const { queueSubscriptionEvent } = require("../utils/subscriptionUtils");
 const purchaseSubscription = async (req, res) => {
   try {
     const { subscriptionType, billingCycle, paymentInfo } = req.body;
-    const userId = req.user.id; // จาก auth middleware
+    const userId = req.user.userId; // จาก auth middleware
 
     // ตรวจสอบ input
     if (!['premium', 'platinum'].includes(subscriptionType)) {
@@ -124,7 +124,7 @@ const purchaseSubscription = async (req, res) => {
 // ดู subscription ปัจจุบันของ user
 const getCurrentSubscription = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user.userId;
 
     const activeSubscription = await UserSubscription.findActiveSubscription(userId);
 
@@ -164,15 +164,16 @@ const getCurrentSubscription = async (req, res) => {
 // ดูประวัติ subscription ทั้งหมดของ user
 const getSubscriptionHistory = async (req, res) => {
   try {
-    const userId = req.user.id;
+    // ถ้ามี userId ใน params แสดงว่าเป็น admin ดู history ของ user อื่น
+    const targetUserId = req.params.userId || req.user.userId;
     const { page = 1, limit = 10 } = req.query;
 
-    const subscriptions = await UserSubscription.find({ userId })
+    const subscriptions = await UserSubscription.find({ userId: targetUserId })
       .sort({ createdAt: -1 })
       .limit(limit * 1)
       .skip((page - 1) * limit);
 
-    const total = await UserSubscription.countDocuments({ userId });
+    const total = await UserSubscription.countDocuments({ userId: targetUserId });
 
     res.status(200).json({
       success: true,
@@ -201,7 +202,7 @@ const getSubscriptionHistory = async (req, res) => {
 // ยกเลิก subscription (แต่ยังใช้ได้จนหมดอายุ)
 const cancelSubscription = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user.userId;
 
     const activeSubscription = await UserSubscription.findActiveSubscription(userId);
 
@@ -252,7 +253,7 @@ const cancelSubscription = async (req, res) => {
 // ดูระดับปัจจุบันของ user (รวมทั้ง subscription)
 const getUserCurrentLevel = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user.userId;
 
     // ดู subscription ที่ active
     const activeSubscription = await UserSubscription.findActiveSubscription(userId);
@@ -443,6 +444,106 @@ const getSubscriptionPricing = async (req, res) => {
   }
 };
 
+// ===============================
+// SUPER ADMIN FUNCTIONS
+// ===============================
+
+// ✅ Superadmin: Create subscription for user
+const adminCreateSubscription = async (req, res) => {
+  try {
+    const { userId, subscriptionType, billingCycle, price, startDate, endDate, notes } = req.body;
+
+    // Validate required fields
+    if (!userId || !subscriptionType || !billingCycle || !price || !startDate || !endDate) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    // Check if user exists
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Create subscription using the static method
+    const newSubscription = await UserSubscription.createSubscription({
+      userId,
+      subscriptionType,
+      billingCycle,
+      price,
+      startDate: new Date(startDate),
+      endDate: new Date(endDate),
+      paymentInfo: {
+        method: 'admin_created',
+        transactionId: `ADMIN_${Date.now()}`,
+        amount: price,
+        currency: 'THB',
+        status: 'completed',
+        notes: notes || 'Created by Super Admin'
+      },
+      metadata: {
+        createdBy: 'superadmin',
+        notes: notes || 'Created by Super Admin'
+      }
+    });
+
+    // Queue subscription event
+    await queueSubscriptionEvent('subscription-purchased', { 
+      subscription: newSubscription, 
+      user, 
+      purchaseDetails: { method: 'admin_created' } 
+    });
+
+    res.json({
+      success: true,
+      message: "Subscription created successfully",
+      subscription: newSubscription
+    });
+
+  } catch (error) {
+    console.error("❌ Failed to create subscription:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+// ✅ Superadmin: Delete subscription
+const adminDeleteSubscription = async (req, res) => {
+  try {
+    const { subscriptionId } = req.params;
+
+    const subscription = await UserSubscription.findById(subscriptionId);
+    if (!subscription) {
+      return res.status(404).json({ error: "Subscription not found" });
+    }
+
+    // Update status to cancelled instead of deleting
+    subscription.status = 'cancelled';
+    subscription.metadata = {
+      ...subscription.metadata,
+      cancelledBy: 'superadmin',
+      cancelledAt: new Date(),
+      notes: 'Cancelled by Super Admin'
+    };
+
+    await subscription.save();
+
+    // Queue subscription event
+    await queueSubscriptionEvent('subscription-cancelled', { 
+      subscription, 
+      user: await User.findById(subscription.userId),
+      cancellationDate: new Date() 
+    });
+
+    res.json({
+      success: true,
+      message: "Subscription cancelled successfully"
+    });
+
+  } catch (error) {
+    console.error("❌ Failed to cancel subscription:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
 module.exports = {
   purchaseSubscription,
   getCurrentSubscription,
@@ -450,5 +551,8 @@ module.exports = {
   cancelSubscription,
   getUserCurrentLevel,
   getAllSubscriptions,
-  getSubscriptionPricing
+  getSubscriptionPricing,
+  // Super admin functions
+  adminCreateSubscription,
+  adminDeleteSubscription
 };
