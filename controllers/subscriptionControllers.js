@@ -165,15 +165,26 @@ const getCurrentSubscription = async (req, res) => {
 const getSubscriptionHistory = async (req, res) => {
   try {
     // ถ้ามี userId ใน params แสดงว่าเป็น admin ดู history ของ user อื่น
-    const targetUserId = req.params.userId || req.user.userId;
+    const targetUserId = req.params.userId || req.user?.userId;
     const { page = 1, limit = 10 } = req.query;
 
-    const subscriptions = await UserSubscription.find({ userId: targetUserId })
+    // ค้นหาทั้ง string และ ObjectId
+    const mongoose = require('mongoose');
+    const query = { 
+      $or: [
+        { userId: targetUserId },
+        ...(mongoose.Types.ObjectId.isValid(targetUserId) 
+          ? [{ userId: new mongoose.Types.ObjectId(targetUserId) }] 
+          : [])
+      ]
+    };
+    
+    const subscriptions = await UserSubscription.find(query)
       .sort({ createdAt: -1 })
       .limit(limit * 1)
       .skip((page - 1) * limit);
-
-    const total = await UserSubscription.countDocuments({ userId: targetUserId });
+    
+    const total = await UserSubscription.countDocuments(query);
 
     res.status(200).json({
       success: true,

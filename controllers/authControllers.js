@@ -391,15 +391,15 @@ const login = async (req, res, next) => {
         res.cookie("accessToken", accessToken, {
           path: "/",
           httpOnly: true,
-          secure: true,
-          sameSite: "None",
+          secure: false,
+          sameSite: "lax",
           maxAge: 7 * 24 * 60 * 60 * 1000,
         });
         res.cookie("refreshToken", refreshToken, {
           path: "/",
           httpOnly: true,
-          secure: true,
-          sameSite: "None",
+          secure: false,
+          sameSite: "lax",
           maxAge: 7 * 24 * 60 * 60 * 1000,
         });
 
@@ -578,16 +578,16 @@ const googleWebLogin = async (req, res) => {
     res.cookie("accessToken", accessToken, {
       path: "/",
       httpOnly: true,
-      secure: true,
-      sameSite: "None",
+      secure: false,
+      sameSite: "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
     res.cookie("refreshToken", refreshToken, {
       path: "/",
       httpOnly: true,
-      secure: true,
-      sameSite: "None",
+      secure: false,
+      sameSite: "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
@@ -765,8 +765,8 @@ const refreshWeb = async (req, res, next) => {
   res.cookie("accessToken", accessToken, {
     path: "/",
     httpOnly: true,
-    secure: true, // ใช้ true สำหรับ HTTPS
-    sameSite: "None", // None เพื่อให้สามารถใช้งานข้ามโดเมนได้หากจำเป็น
+    secure: false, // ใช้ true สำหรับ HTTPS
+    sameSite: "lax", // None เพื่อให้สามารถใช้งานข้ามโดเมนได้หากจำเป็น
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });
   //const foundUser = await user.findOneAndUpdate({ userId: req.user.userId }, { 'user.token': accessToken }, { useFindAndModify: false, new: true });
