@@ -170,14 +170,20 @@ const getSubscriptionHistory = async (req, res) => {
 
     // ค้นหาทั้ง string และ ObjectId
     const mongoose = require('mongoose');
-    const query = { 
-      $or: [
-        { userId: targetUserId },
-        ...(mongoose.Types.ObjectId.isValid(targetUserId) 
-          ? [{ userId: new mongoose.Types.ObjectId(targetUserId) }] 
-          : [])
-      ]
-    };
+    let query;
+    
+    if (mongoose.Types.ObjectId.isValid(targetUserId)) {
+      // ถ้าเป็น valid ObjectId ให้ search ทั้ง string และ ObjectId
+      query = { 
+        $or: [
+          { userId: targetUserId },
+          { userId: new mongoose.Types.ObjectId(targetUserId) }
+        ]
+      };
+    } else {
+      // ถ้าไม่ใช่ ObjectId ให้ search เป็น string อย่างเดียว
+      query = { userId: targetUserId };
+    }
     
     const subscriptions = await UserSubscription.find(query)
       .sort({ createdAt: -1 })
