@@ -85,6 +85,13 @@ const whitelist = [
   "https://localhost:3111",
   "https://api.healworld.me",
   "https://api.nightlife.run",
+  // Flutter web development URLs
+  "http://localhost:8080",
+  "https://localhost:8080",
+  "http://localhost:3000",
+  "https://localhost:3000",
+  "http://127.0.0.1:8080",
+  "https://127.0.0.1:8080",
 ];
 const corsOptions = {
   origin: (origin, callback) => {
