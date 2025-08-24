@@ -138,25 +138,7 @@ const verifyAccessTokenWeb = async (req, res, next) => {
         if (err) {
           return accessTokenCatchError(err, res);
         } else {
-          // let hardwareIdIsMember = await redis.sIsMember(
-          //   `Hardware_ID_${decoded.userId}`,
-          //   req.headers["device-fingerprint"]
-          // );
 
-          // if (!MacAddressIsMember && !hardwareIdIsMember) {
-          //   return res.status(401).send({
-          //     status: "error",
-          //     message: "Both Mac Address AND Hardware ID does not exist!",
-          //   });
-          // } else if (!MacAddressIsMember) {
-          //   return res
-          //     .status(401)
-          //     .send({ status: "error", message: "Mac Address does not exist!" });
-          // } else if (!hardwareIdIsMember) {
-          //   return res
-          //     .status(401)
-          //     .send({ status: "error", message: "Hardware ID does not exist!" });
-          // }
           //console.log(`decoded.userId = ${decoded.userId}`);
           const lastAccessToken = await redis.get(
             `Last_Access_Token_${decoded.userId}_${req.headers["device-fingerprint"]}`
