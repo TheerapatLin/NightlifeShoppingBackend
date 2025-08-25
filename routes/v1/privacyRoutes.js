@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const privacyController = require('../../controllers/privacyControllers');
-const { verifyToken } = require('../../middlewares/auth');
+const { verifyToken, verifyJWT } = require('../../middlewares/auth');
 
 // ================= PRIVACY SETTINGS ROUTES =================
 
@@ -28,7 +28,8 @@ router.get('/block-status/:userId', verifyToken, privacyController.checkBlockSta
 // ================= USER SEARCH & PROFILE ROUTES =================
 
 // ค้นหาผู้ใช้
-router.get('/search/users', verifyToken, privacyController.searchUsers);
+router.get('/search/users', verifyJWT, privacyController.searchUsers);
+router.get('/search', verifyJWT, privacyController.searchUsers); // เพิ่ม route สำหรับ mobile app
 
 // ดึงข้อมูลผู้ใช้
 router.get('/user/:userId', verifyToken, privacyController.getUserProfile);

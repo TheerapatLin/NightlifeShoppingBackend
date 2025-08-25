@@ -309,9 +309,31 @@ const verifyAPIKey = (req, res, next) => {
   next();
 };
 
+// JWT middleware สำหรับ Chat/Privacy (ไม่ต้องใช้ device-fingerprint)
+const verifyJWT = (req, res, next) => {
+  if (!req.headers["authorization"]) {
+    return res.status(401).send({
+      status: "error",
+      message: "TOKEN is required for authentication",
+    });
+  }
+
+  const token = req.headers["authorization"].replace("Bearer ", "");
+
+  jwt.verify(token, JWT_ACCESS_TOKEN_SECRET, (err, decoded) => {
+    if (err) {
+      return accessTokenCatchError(err, res);
+    } else {
+      req.user = decoded;
+      return next();
+    }
+  });
+};
+
 module.exports = {
   verifyAccessToken,
   verifyToken: verifyAccessToken, // Alias for backward compatibility
+  verifyJWT, // สำหรับ Chat/Privacy routes
   verifyRefreshToken,
   verifyAPIKey,
   verifyAccessTokenWeb,
