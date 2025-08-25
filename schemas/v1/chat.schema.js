@@ -15,7 +15,7 @@ const chatRoomSchema = new Schema({
     isActive: { type: Boolean, default: true } // สถานะการเข้าร่วม
   }],
   status: { type: String, enum: ["active", "inactive", "archived"], default: "active" }, // สถานะห้องแชท
-  createdAt: { type: Date, default: Date.now }, // วันที่สร้างห้องแชท
+  createdAt: { type: Date, default: Date.now }, // วันที่สร้างห้องแชท 
   updatedAt: { type: Date, default: Date.now }, // วันที่แก้ไขล่าสุด
   lastMessage: { type: Schema.Types.ObjectId, ref: "Message" }, // ข้อความล่าสุดในห้องแชท
   lastMessageTime: { type: Date, default: Date.now },

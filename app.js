@@ -705,6 +705,19 @@ app.use("/api/v1/chat", v1ChatRouter);
 const v1PrivacyRouter = require("./routes/v1/privacyRoutes");
 app.use("/api/v1/privacy", v1PrivacyRouter);
 
+//? Media Queue Dashboard (Development only)
+if (process.env.NODE_ENV === 'development') {
+  try {
+    // Use custom simple dashboard instead of bull-arena
+    const queueDashboard = require('./routes/queueDashboard');
+    app.use('/admin/queues', queueDashboard);
+    console.log('🎯 Queue Dashboard available at: http://localhost:3101/admin/queues');
+  } catch (error) {
+    console.warn('⚠️ Queue Dashboard not available:', error.message);
+    console.warn('   This is optional - media upload will still work without the dashboard');
+  }
+}
+
 // catch 404 and forward to error handler
 app.use(function (req, res, next) {
   next(createError(404));

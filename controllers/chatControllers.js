@@ -1,6 +1,7 @@
 const { ChatRoom, Message, StickerSet, Sticker, UserStickerCollection } = require("../schemas/v1/chat.schema");
 const { User } = require("../schemas/v1/user.schema");
 const mongoose = require("mongoose");
+const { addImageProcessingJob, addVideoProcessingJobs } = require("../queues/mediaQueue");
 
 // ================= CHAT ROOM CONTROLLERS =================
 
@@ -397,6 +398,25 @@ exports.sendMessage = async (req, res) => {
     });
 
     await newMessage.save();
+
+    // เพิ่ม Media Processing Jobs (ถ้ามีไฟล์)
+    if (mediaInfo && type !== 'text') {
+      try {
+        if (type === 'image' && mediaInfo.url) {
+          console.log(`🎨 Adding image processing job for message: ${newMessage._id}`);
+          // ถ้ามี buffer จาก upload process ให้ใช้ queue
+          // TODO: ส่ง buffer มาจาก route หรือ download จาก OSS
+          // await addImageProcessingJob(newMessage._id, chatRoomId, userId, imageBuffer, mediaInfo.originalName);
+        } else if (type === 'video' && mediaInfo.url) {
+          console.log(`🎬 Adding video processing jobs for message: ${newMessage._id}`);
+          // TODO: ส่ง buffer มาจาก route หรือ download จาก OSS
+          // await addVideoProcessingJobs(newMessage._id, chatRoomId, userId, videoBuffer, mediaInfo.originalName);
+        }
+      } catch (queueError) {
+        console.error('❌ Failed to add media processing job:', queueError);
+        // ไม่ throw error เพราะข้อความถูกส่งแล้ว แค่ processing ที่ล้มเหลว
+      }
+    }
 
     // อัพเดทห้องแชท
     chatRoom.lastMessage = newMessage._id;
