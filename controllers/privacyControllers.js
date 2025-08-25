@@ -1,4 +1,4 @@
-const { User } = require("../schemas/v1/user.schema");
+const User = require("../schemas/v1/user.schema");
 const { ChatRoom, Message } = require("../schemas/v1/chat.schema");
 const mongoose = require("mongoose");
 
