@@ -96,6 +96,62 @@ const UserSchema = new mongoose.Schema(
         lastLogin: { type: Date, default: Date.now },
       },
     ],
+    
+    // Privacy Settings
+    privacySettings: {
+      searchable: { 
+        type: Boolean, 
+        default: true 
+      }, // อนุญาตให้ค้นเจอแบบสาธารณะหรือไม่
+      allowDirectMessage: { 
+        type: Boolean, 
+        default: true 
+      }, // อนุญาตให้คนอื่นทักแชทได้หรือไม่
+      showOnlineStatus: { 
+        type: Boolean, 
+        default: true 
+      }, // แสดงสถานะออนไลน์หรือไม่
+      allowGroupInvite: { 
+        type: Boolean, 
+        default: true 
+      }, // อนุญาตให้เชิญเข้ากลุ่มหรือไม่
+      profileVisibility: {
+        type: String,
+        enum: ["public", "friends", "private"],
+        default: "public"
+      }, // ระดับการมองเห็นโปรไฟล์
+    },
+    
+    // Block List
+    blockedUsers: [{
+      userId: { 
+        type: mongoose.Schema.Types.ObjectId, 
+        ref: "User", 
+        required: true 
+      },
+      blockedAt: { 
+        type: Date, 
+        default: Date.now 
+      },
+      reason: { 
+        type: String, 
+        enum: ["spam", "harassment", "inappropriate", "other"], 
+        default: "other" 
+      }
+    }],
+    
+    // Users who blocked this user (for quick lookup)
+    blockedBy: [{
+      userId: { 
+        type: mongoose.Schema.Types.ObjectId, 
+        ref: "User", 
+        required: true 
+      },
+      blockedAt: { 
+        type: Date, 
+        default: Date.now 
+      }
+    }],
   },
   { timestamps: true }
 );
@@ -143,6 +199,11 @@ UserSchema.index({ "user.verified.email": 1 });
 UserSchema.index({ userType: 1, userData: 1 });
 UserSchema.index({ "loggedInDevices.deviceFingerprint": 1 });
 
+// Privacy และ Block indexes
+UserSchema.index({ "privacySettings.searchable": 1 });
+UserSchema.index({ "blockedUsers.userId": 1 });
+UserSchema.index({ "blockedBy.userId": 1 });
+
 // ✅ ปรับเป็น partial index เพื่อลดภาระ หากไม่มี accountNumber
 UserSchema.index(
   { "affiliateBankInfo.accountNumber": 1 },
@@ -189,6 +250,89 @@ UserSchema.virtual('currentLevel').get(async function() {
     };
   }
 });
+
+// Instance methods สำหรับ Privacy & Block
+UserSchema.methods.isBlocked = function(userId) {
+  return this.blockedUsers.some(blocked => blocked.userId.toString() === userId.toString());
+};
+
+UserSchema.methods.isBlockedBy = function(userId) {
+  return this.blockedBy.some(blocked => blocked.userId.toString() === userId.toString());
+};
+
+UserSchema.methods.canBeSearchedBy = function(searcherId) {
+  // ถ้าไม่อนุญาตให้ค้นหา
+  if (!this.privacySettings.searchable) {
+    return false;
+  }
+  
+  // ถ้าถูกบล็อกหรือบล็อกผู้ค้นหา
+  if (this.isBlocked(searcherId) || this.isBlockedBy(searcherId)) {
+    return false;
+  }
+  
+  return true;
+};
+
+UserSchema.methods.canReceiveMessageFrom = function(senderId) {
+  // ถ้าไม่อนุญาตให้ทักแชท
+  if (!this.privacySettings.allowDirectMessage) {
+    return false;
+  }
+  
+  // ถ้าถูกบล็อกหรือบล็อกผู้ส่ง
+  if (this.isBlocked(senderId) || this.isBlockedBy(senderId)) {
+    return false;
+  }
+  
+  return true;
+};
+
+UserSchema.methods.blockUser = async function(userIdToBlock, reason = "other") {
+  // ตรวจสอบว่าบล็อกแล้วหรือยัง
+  if (this.isBlocked(userIdToBlock)) {
+    return false;
+  }
+  
+  // เพิ่มในรายการบล็อก
+  this.blockedUsers.push({
+    userId: userIdToBlock,
+    reason: reason,
+    blockedAt: new Date()
+  });
+  
+  // อัพเดท blockedBy ของผู้ถูกบล็อก
+  const User = mongoose.model("User");
+  await User.findByIdAndUpdate(userIdToBlock, {
+    $push: {
+      blockedBy: {
+        userId: this._id,
+        blockedAt: new Date()
+      }
+    }
+  });
+  
+  await this.save();
+  return true;
+};
+
+UserSchema.methods.unblockUser = async function(userIdToUnblock) {
+  // ลบจากรายการบล็อก
+  this.blockedUsers = this.blockedUsers.filter(
+    blocked => blocked.userId.toString() !== userIdToUnblock.toString()
+  );
+  
+  // ลบจาก blockedBy ของผู้ถูกบล็อก
+  const User = mongoose.model("User");
+  await User.findByIdAndUpdate(userIdToUnblock, {
+    $pull: {
+      blockedBy: { userId: this._id }
+    }
+  });
+  
+  await this.save();
+  return true;
+};
 
 // Instance method สำหรับดูระดับปัจจุบัน
 UserSchema.methods.getCurrentLevel = async function() {

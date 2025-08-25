@@ -6,7 +6,8 @@
     "start": "cross-env NODE_ENV=production node ./bin/www",
     "start:dev": "NODE_ENV=development node ./bin/www",
     "dev:hw": "cross-env NODE_ENV=development dotenv -e .env-hw nodemon ./bin/www",
-    "dev:nl": "cross-env NODE_ENV=development dotenv -e .env-nl nodemon ./bin/www"
+    "dev:nl": "cross-env NODE_ENV=development dotenv -e .env-nl nodemon ./bin/www",
+    "seed:chat-privacy": "node scripts/runSeed.js chat-privacy"
   },
   "dependencies": {
     "@bull-board/api": "^6.12.0",

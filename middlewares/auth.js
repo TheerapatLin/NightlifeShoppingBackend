@@ -311,6 +311,7 @@ const verifyAPIKey = (req, res, next) => {
 
 module.exports = {
   verifyAccessToken,
+  verifyToken: verifyAccessToken, // Alias for backward compatibility
   verifyRefreshToken,
   verifyAPIKey,
   verifyAccessTokenWeb,

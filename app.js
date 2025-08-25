@@ -116,27 +116,479 @@ app.use(cors(corsOptions));
 const server = require("http").createServer(app);
 const io = require("socket.io")(server);
 
+// เก็บข้อมูล user ที่ online
+const onlineUsers = new Map();
+
 io.on("connection", (socket) => {
-  console.log("a user connected:", socket.id);
+  console.log("🔌 User connected:", socket.id);
 
-  socket.on("joinActivity", (chatRoomId) => {
-    socket.join(chatRoomId);
-    console.log(`${socket.id} joined activity ${chatRoomId}`);
+  // Authentication - user ต้องส่ง token มาเพื่อ authenticate
+  socket.on("authenticate", async (data) => {
+    try {
+      const { token, userId } = data;
+      
+      if (!token || !userId) {
+        socket.emit("auth_error", { message: "Token and userId required" });
+        return;
+      }
+
+      // TODO: Verify JWT token here
+      // const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      
+      socket.userId = userId;
+      socket.authenticated = true;
+      
+      // เก็บข้อมูล user online
+      onlineUsers.set(userId, {
+        socketId: socket.id,
+        userId,
+        connectedAt: new Date(),
+        status: "online"
+      });
+
+      socket.emit("authenticated", { 
+        message: "Authentication successful",
+        userId 
+      });
+
+      // แจ้งเพื่อนว่า user online
+      socket.broadcast.emit("user_online", { userId });
+
+      console.log(`✅ User ${userId} authenticated with socket ${socket.id}`);
+
+    } catch (error) {
+      console.error("Authentication error:", error);
+      socket.emit("auth_error", { message: "Authentication failed" });
+    }
   });
 
-  socket.on("message", ({ activityId, message }) => {});
+  // เข้าร่วมห้องแชท
+  socket.on("join_chat", async (data) => {
+    try {
+      if (!socket.authenticated) {
+        socket.emit("error", { message: "Please authenticate first" });
+        return;
+      }
 
-  socket.on("leaveActivity", (chatRoomId) => {
-    socket.leave(chatRoomId);
-    console.log(`${socket.id} left activity ${chatRoomId}`);
+      const { chatRoomId } = data;
+      const { ChatRoom } = require("./schemas/v1/chat.schema");
+
+      // ตรวจสอบสิทธิ์เข้าห้อง
+      const chatRoom = await ChatRoom.findById(chatRoomId);
+      if (!chatRoom) {
+        socket.emit("error", { message: "Chat room not found" });
+        return;
+      }
+
+      const isParticipant = chatRoom.participants.some(
+        p => p.userId.toString() === socket.userId && p.isActive
+      );
+
+      if (!isParticipant) {
+        socket.emit("error", { message: "Access denied" });
+        return;
+      }
+
+      socket.join(chatRoomId);
+      socket.currentChatRoom = chatRoomId;
+
+      console.log(`👥 User ${socket.userId} joined chat room ${chatRoomId}`);
+
+      // แจ้งสมาชิกในห้องว่ามี user เข้ามา
+      socket.to(chatRoomId).emit("user_joined_chat", {
+        userId: socket.userId,
+        chatRoomId,
+        timestamp: new Date()
+      });
+
+      socket.emit("joined_chat", { 
+        chatRoomId,
+        message: "Successfully joined chat room" 
+      });
+
+    } catch (error) {
+      console.error("Error joining chat:", error);
+      socket.emit("error", { message: "Failed to join chat room" });
+    }
   });
 
+  // ออกจากห้องแชท
+  socket.on("leave_chat", (data) => {
+    try {
+      const { chatRoomId } = data;
+      
+      socket.leave(chatRoomId);
+      
+      // แจ้งสมาชิกในห้องว่ามี user ออกไป
+      socket.to(chatRoomId).emit("user_left_chat", {
+        userId: socket.userId,
+        chatRoomId,
+        timestamp: new Date()
+      });
+
+      console.log(`👋 User ${socket.userId} left chat room ${chatRoomId}`);
+
+    } catch (error) {
+      console.error("Error leaving chat:", error);
+    }
+  });
+
+  // ส่งข้อความ (Real-time)
+  socket.on("send_message", async (data) => {
+    try {
+      if (!socket.authenticated) {
+        socket.emit("error", { message: "Please authenticate first" });
+        return;
+      }
+
+      const { chatRoomId, messageId, type, content, mediaInfo, stickerInfo, replyTo } = data;
+      const { Message, ChatRoom } = require("./schemas/v1/chat.schema");
+
+      // ดึงข้อความที่เพิ่งสร้าง
+      const message = await Message.findById(messageId)
+        .populate('sender', 'name avatar')
+        .populate('replyTo', 'content sender type')
+        .populate({
+          path: 'replyTo',
+          populate: { path: 'sender', select: 'name' }
+        });
+
+      if (!message) {
+        socket.emit("error", { message: "Message not found" });
+        return;
+      }
+
+      // ดึงข้อมูลห้องแชท
+      const chatRoom = await ChatRoom.findById(chatRoomId);
+      
+      // ส่งข้อความไปยังสมาชิกในห้อง
+      io.to(chatRoomId).emit("new_message", {
+        message,
+        chatRoomId,
+        timestamp: new Date()
+      });
+
+      // ส่ง unread count update ให้สมาชิกอื่นๆ (ยกเว้นผู้ส่ง)
+      if (chatRoom) {
+        chatRoom.participants.forEach(participant => {
+          if (participant.userId.toString() !== socket.userId && participant.isActive) {
+            const participantUnreadCount = chatRoom.getUnreadCount(participant.userId);
+            
+            // ส่งไปยัง specific user
+            const participantSocket = Array.from(io.sockets.sockets.values())
+              .find(s => s.userId === participant.userId.toString());
+            
+            if (participantSocket) {
+              participantSocket.emit("unread_count_updated", {
+                chatRoomId,
+                chatRoomName: chatRoom.name,
+                unreadCount: participantUnreadCount,
+                lastMessage: {
+                  content: message.content,
+                  sender: message.sender.name,
+                  timestamp: message.timestamp
+                }
+              });
+            }
+          }
+        });
+      }
+
+      console.log(`💬 Message sent in room ${chatRoomId} by user ${socket.userId}`);
+
+    } catch (error) {
+      console.error("Error sending message:", error);
+      socket.emit("error", { message: "Failed to send message" });
+    }
+  });
+
+  // แจ้งว่ากำลังพิมพ์
+  socket.on("typing_start", (data) => {
+    try {
+      const { chatRoomId } = data;
+      
+      socket.to(chatRoomId).emit("user_typing", {
+        userId: socket.userId,
+        chatRoomId,
+        timestamp: new Date()
+      });
+
+    } catch (error) {
+      console.error("Error handling typing:", error);
+    }
+  });
+
+  // หยุดพิมพ์
+  socket.on("typing_stop", (data) => {
+    try {
+      const { chatRoomId } = data;
+      
+      socket.to(chatRoomId).emit("user_stop_typing", {
+        userId: socket.userId,
+        chatRoomId,
+        timestamp: new Date()
+      });
+
+    } catch (error) {
+      console.error("Error handling stop typing:", error);
+    }
+  });
+
+  // เพิ่ม reaction
+  socket.on("add_reaction", async (data) => {
+    try {
+      const { messageId, emoji, reactionType, chatRoomId } = data;
+      const { Message } = require("./schemas/v1/chat.schema");
+
+      // ดึงข้อความที่อัพเดทแล้ว
+      const message = await Message.findById(messageId);
+      if (!message) {
+        socket.emit("error", { message: "Message not found" });
+        return;
+      }
+
+      // ส่งการอัพเดท reaction ไปยังสมาชิกในห้อง
+      io.to(chatRoomId).emit("reaction_updated", {
+        messageId,
+        reactions: message.reactions,
+        updatedBy: socket.userId,
+        timestamp: new Date()
+      });
+
+    } catch (error) {
+      console.error("Error handling reaction:", error);
+      socket.emit("error", { message: "Failed to add reaction" });
+    }
+  });
+
+  // ลบข้อความ
+  socket.on("delete_message", async (data) => {
+    try {
+      const { messageId, chatRoomId, deleteFor } = data;
+
+      // ส่งการแจ้งเตือนไปยังสมาชิกในห้อง
+      io.to(chatRoomId).emit("message_deleted", {
+        messageId,
+        deletedBy: socket.userId,
+        deleteFor,
+        timestamp: new Date()
+      });
+
+    } catch (error) {
+      console.error("Error handling message deletion:", error);
+    }
+  });
+
+  // แก้ไขข้อความ
+  socket.on("edit_message", async (data) => {
+    try {
+      const { messageId, newContent, chatRoomId } = data;
+      const { Message } = require("./schemas/v1/chat.schema");
+
+      const message = await Message.findById(messageId);
+      if (!message) {
+        socket.emit("error", { message: "Message not found" });
+        return;
+      }
+
+      // ส่งการแจ้งเตือนไปยังสมาชิกในห้อง
+      io.to(chatRoomId).emit("message_edited", {
+        messageId,
+        newContent,
+        editedBy: socket.userId,
+        isEdited: true,
+        timestamp: new Date()
+      });
+
+    } catch (error) {
+      console.error("Error handling message edit:", error);
+    }
+  });
+
+  // อัพเดทสถานะการอ่าน
+  socket.on("mark_as_read", async (data) => {
+    try {
+      const { chatRoomId, messageId } = data;
+      const { ChatRoom, Message } = require("./schemas/v1/chat.schema");
+
+      const chatRoom = await ChatRoom.findById(chatRoomId);
+      if (chatRoom) {
+        // รีเซ็ต unread count
+        chatRoom.resetUnreadCount(socket.userId);
+        await chatRoom.save();
+
+        // ถ้าระบุ messageId ให้อัพเดท read status
+        if (messageId) {
+          const message = await Message.findById(messageId);
+          if (message) {
+            const existingRead = message.readBy.find(r => r.userId.toString() === socket.userId);
+            if (!existingRead) {
+              message.readBy.push({
+                userId: socket.userId,
+                readAt: new Date()
+              });
+              await message.save();
+            }
+          }
+        }
+      }
+
+      // แจ้งสมาชิกในห้องว่ามีการอ่านข้อความ
+      socket.to(chatRoomId).emit("message_read", {
+        userId: socket.userId,
+        chatRoomId,
+        readAt: new Date()
+      });
+
+      // ส่ง unread count ที่อัพเดทแล้วกลับไปยังผู้ใช้
+      socket.emit("unread_count_reset", {
+        chatRoomId,
+        unreadCount: 0
+      });
+
+    } catch (error) {
+      console.error("Error handling read status:", error);
+    }
+  });
+
+  // อัพเดทสถานะ online/offline
+  socket.on("update_status", (data) => {
+    try {
+      const { status } = data; // "online", "away", "busy", "invisible"
+      
+      if (onlineUsers.has(socket.userId)) {
+        const userInfo = onlineUsers.get(socket.userId);
+        userInfo.status = status;
+        userInfo.lastSeen = new Date();
+        onlineUsers.set(socket.userId, userInfo);
+      }
+
+      // แจ้งเพื่อนเกี่ยวกับการเปลี่ยนสถานะ
+      socket.broadcast.emit("user_status_updated", {
+        userId: socket.userId,
+        status,
+        timestamp: new Date()
+      });
+
+    } catch (error) {
+      console.error("Error updating status:", error);
+    }
+  });
+
+  // อัพเดทสถานะ delivery
+  socket.on("mark_as_delivered", async (data) => {
+    try {
+      const { messageId } = data;
+      const { Message } = require("./schemas/v1/chat.schema");
+
+      const message = await Message.findById(messageId);
+      if (message) {
+        const existingDelivered = message.deliveredTo.find(
+          d => d.userId.toString() === socket.userId
+        );
+
+        if (!existingDelivered) {
+          message.deliveredTo.push({
+            userId: socket.userId,
+            deliveredAt: new Date()
+          });
+          await message.save();
+
+          // แจ้งผู้ส่งว่าข้อความถูกส่งถึงแล้ว
+          const senderSocket = Array.from(io.sockets.sockets.values())
+            .find(s => s.userId === message.sender.toString());
+          
+          if (senderSocket) {
+            senderSocket.emit("message_delivered", {
+              messageId,
+              deliveredTo: socket.userId,
+              deliveredAt: new Date()
+            });
+          }
+        }
+      }
+
+    } catch (error) {
+      console.error("Error handling delivery status:", error);
+    }
+  });
+
+  // ขอข้อมูล unread count ทั้งหมด
+  socket.on("get_total_unread", async () => {
+    try {
+      const { ChatRoom } = require("./schemas/v1/chat.schema");
+      
+      const chatRooms = await ChatRoom.find({
+        "participants.userId": socket.userId,
+        "participants.isActive": true,
+        status: "active"
+      });
+
+      let totalUnread = 0;
+      const roomUnreadCounts = [];
+
+      chatRooms.forEach(room => {
+        const unreadCount = room.getUnreadCount(socket.userId);
+        totalUnread += unreadCount;
+        
+        if (unreadCount > 0) {
+          roomUnreadCounts.push({
+            chatRoomId: room._id,
+            chatRoomName: room.name,
+            unreadCount
+          });
+        }
+      });
+
+      socket.emit("total_unread_count", {
+        totalUnreadCount: totalUnread,
+        unreadRooms: roomUnreadCounts.length,
+        roomDetails: roomUnreadCounts
+      });
+
+    } catch (error) {
+      console.error("Error getting total unread:", error);
+    }
+  });
+
+  // ขอข้อมูล user ที่ online
+  socket.on("get_online_users", () => {
+    try {
+      const onlineUsersList = Array.from(onlineUsers.values());
+      socket.emit("online_users", onlineUsersList);
+    } catch (error) {
+      console.error("Error getting online users:", error);
+    }
+  });
+
+  // Disconnect
   socket.on("disconnect", () => {
-    console.log("user disconnected:", socket.id);
+    console.log(`🔌 User disconnected: ${socket.id}`);
+    
+    if (socket.userId) {
+      // ลบจากรายชื่อ online users
+      onlineUsers.delete(socket.userId);
+      
+      // แจ้งเพื่อนว่า user offline
+      socket.broadcast.emit("user_offline", {
+        userId: socket.userId,
+        lastSeen: new Date()
+      });
+
+      // แจ้งห้องแชทที่เข้าร่วมอยู่
+      if (socket.currentChatRoom) {
+        socket.to(socket.currentChatRoom).emit("user_left_chat", {
+          userId: socket.userId,
+          chatRoomId: socket.currentChatRoom,
+          timestamp: new Date()
+        });
+      }
+    }
   });
 
-  socket.on("reaction", (data) => {
-    io.to(data.chatRoomId).emit("reaction", data);
+  // Error handling
+  socket.on("error", (error) => {
+    console.error(`Socket error for ${socket.id}:`, error);
   });
 });
 
@@ -244,6 +696,14 @@ app.use("/api/v1", v1WebhookRouter);
 const activityRoutes = require("./routes/v1/activityRoutes");
 const v1ActivityRouter = activityRoutes(io);
 app.use("/api/v1/activity", v1ActivityRouter);
+
+//? Chat Endpoints
+const v1ChatRouter = require("./routes/v1/chatRoutes");
+app.use("/api/v1/chat", v1ChatRouter);
+
+//? Privacy & Block Endpoints
+const v1PrivacyRouter = require("./routes/v1/privacyRoutes");
+app.use("/api/v1/privacy", v1PrivacyRouter);
 
 // catch 404 and forward to error handler
 app.use(function (req, res, next) {

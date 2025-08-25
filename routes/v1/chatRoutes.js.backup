@@ -1,0 +1,530 @@
+const express = require('express');
+const router = express.Router();
+const { verifyToken } = require('../../middlewares/auth');
+const multer = require('multer');
+const { uploadToOSS } = require('../../modules/storage/oss');
+
+// Configure multer for file uploads
+const storage = multer.memoryStorage();
+const upload = multer({
+  storage,
+  limits: {
+    fileSize: 50 * 1024 * 1024, // 50MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    // Allow images, videos, audio files
+    const allowedMimes = [
+      'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+      'video/mp4', 'video/quicktime', 'video/x-msvideo',
+      'audio/mpeg', 'audio/wav', 'audio/ogg',
+      'application/pdf', 'text/plain'
+    ];
+    
+    if (allowedMimes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('ประเภทไฟล์ไม่ได้รับอนุญาต'), false);
+    }
+  }
+});
+
+// ================= CHAT ROOM ROUTES =================
+
+// Import functions จาก chatController
+const {
+  createChatRoom,
+  getUserChatRooms,
+  sendMessage,
+  getChatMessages,
+  deleteMessage,
+  editMessage,
+  addReaction,
+  markAsRead,
+  getStickerSets,
+  getStickersInSet,
+  downloadStickerSet,
+  getUserStickerSets,
+  getTotalUnreadCount,
+  getMessageReadStats,
+  markAsDelivered
+} = require('../../controllers/chatControllers');
+
+// สร้างห้องแชทใหม่
+router.post('/rooms', verifyToken, createChatRoom);
+
+// ดึงรายการห้องแชทของ user
+router.get('/rooms', verifyToken, getUserChatRooms);
+
+// ดูรายละเอียดห้องแชท
+router.get('/rooms/:chatRoomId', verifyToken, async (req, res) => {
+  try {
+    const { chatRoomId } = req.params;
+    const userId = req.user._id;
+    const { ChatRoom } = require('../../schemas/v1/chat.schema');
+
+    const chatRoom = await ChatRoom.findById(chatRoomId)
+      .populate('participants.userId', 'name avatar email')
+      .populate('lastMessage')
+      .populate('activityId', 'name images');
+
+    if (!chatRoom) {
+      return res.status(404).json({ 
+        success: false, 
+        message: "ไม่พบห้องแชท" 
+      });
+    }
+
+    // ตรวจสอบสิทธิ์
+    const isParticipant = chatRoom.participants.some(
+      p => p.userId._id.toString() === userId.toString() && p.isActive
+    );
+
+    if (!isParticipant) {
+      return res.status(403).json({ 
+        success: false, 
+        message: "คุณไม่มีสิทธิ์เข้าถึงห้องแชทนี้" 
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      chatRoom
+    });
+
+  } catch (error) {
+    console.error("Error fetching chat room details:", error);
+    res.status(500).json({ 
+      success: false, 
+      message: "เกิดข้อผิดพลาดในการดึงข้อมูลห้องแชท", 
+      error: error.message 
+    });
+  }
+});
+
+// เข้าร่วมห้องแชท
+router.post('/rooms/:chatRoomId/join', verifyToken, async (req, res) => {
+  const { joinChatRoom } = require('../../controllers/chatControllers');
+  await joinChatRoom(req, res);
+});
+
+// ออกจากห้องแชท
+router.post('/rooms/:chatRoomId/leave', verifyToken, chatController.leaveChatRoom);
+
+// อัพเดทการตั้งค่าห้องแชท
+router.put('/rooms/:chatRoomId/settings', verifyToken, async (req, res) => {
+  try {
+    const { chatRoomId } = req.params;
+    const { name, description, avatar, settings } = req.body;
+    const userId = req.user._id;
+    const { ChatRoom } = require('../../schemas/v1/chat.schema');
+
+    const chatRoom = await ChatRoom.findById(chatRoomId);
+    if (!chatRoom) {
+      return res.status(404).json({ 
+        success: false, 
+        message: "ไม่พบห้องแชท" 
+      });
+    }
+
+    // ตรวจสอบสิทธิ์ admin
+    const participant = chatRoom.participants.find(
+      p => p.userId.toString() === userId.toString()
+    );
+
+    if (!participant || participant.role !== 'admin') {
+      return res.status(403).json({ 
+        success: false, 
+        message: "คุณไม่มีสิทธิ์แก้ไขการตั้งค่าห้องแชท" 
+      });
+    }
+
+    // อัพเดทข้อมูล
+    if (name) chatRoom.name = name;
+    if (description) chatRoom.description = description;
+    if (avatar) chatRoom.avatar = avatar;
+    if (settings) chatRoom.settings = { ...chatRoom.settings, ...settings };
+    chatRoom.updatedAt = new Date();
+
+    await chatRoom.save();
+
+    res.status(200).json({
+      success: true,
+      message: "อัพเดทการตั้งค่าสำเร็จ",
+      chatRoom
+    });
+
+  } catch (error) {
+    console.error("Error updating chat room settings:", error);
+    res.status(500).json({ 
+      success: false, 
+      message: "เกิดข้อผิดพลาดในการอัพเดทการตั้งค่า", 
+      error: error.message 
+    });
+  }
+});
+
+// ================= MESSAGE ROUTES =================
+
+// ดึงข้อความในห้องแชท
+router.get('/rooms/:chatRoomId/messages', verifyToken, chatController.getChatMessages);
+
+// ส่งข้อความแบบ text
+router.post('/rooms/:chatRoomId/messages', verifyToken, chatController.sendMessage);
+
+// ส่งไฟล์สื่อ (รูป, วิดีโอ, เสียง)
+router.post('/rooms/:chatRoomId/messages/media', verifyToken, upload.single('file'), async (req, res) => {
+  try {
+    const { chatRoomId } = req.params;
+    const { type, content, replyTo } = req.body;
+    const userId = req.user._id;
+    const file = req.file;
+
+    if (!file) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "กรุณาเลือกไฟล์" 
+      });
+    }
+
+    // Upload ไฟล์ไปยัง OSS
+    const uploadResult = await uploadToOSS(file, `chat/${chatRoomId}`);
+    
+    // สร้างข้อมูล mediaInfo
+    const mediaInfo = {
+      originalName: file.originalname,
+      mimeType: file.mimetype,
+      size: file.size,
+      url: uploadResult.url,
+      uploadedAt: new Date()
+    };
+
+    // ถ้าเป็นรูปภาพ สร้าง thumbnail
+    if (file.mimetype.startsWith('image/')) {
+      // TODO: สร้าง thumbnail
+      mediaInfo.thumbnail = uploadResult.url; // ใช้รูปต้นฉบับก่อน
+    }
+
+    // ส่งข้อความ
+    const messageData = {
+      chatRoomId,
+      type: type || (file.mimetype.startsWith('image/') ? 'image' : 
+                    file.mimetype.startsWith('video/') ? 'video' : 
+                    file.mimetype.startsWith('audio/') ? 'audio' : 'file'),
+      content: content || file.originalname,
+      mediaInfo,
+      replyTo
+    };
+
+    req.body = messageData;
+    await chatController.sendMessage(req, res);
+
+  } catch (error) {
+    console.error("Error uploading media:", error);
+    res.status(500).json({ 
+      success: false, 
+      message: "เกิดข้อผิดพลาดในการอัปโหลดไฟล์", 
+      error: error.message 
+    });
+  }
+});
+
+// ส่ง sticker
+router.post('/rooms/:chatRoomId/messages/sticker', verifyToken, async (req, res) => {
+  try {
+    const { chatRoomId } = req.params;
+    const { setId, stickerId, stickerType, metadata, replyTo } = req.body;
+
+    const messageData = {
+      chatRoomId,
+      type: 'sticker',
+      content: 'sticker',
+      stickerInfo: {
+        setId,
+        stickerId,
+        type: stickerType || 'static',
+        metadata
+      },
+      replyTo
+    };
+
+    req.body = messageData;
+    await chatController.sendMessage(req, res);
+
+  } catch (error) {
+    console.error("Error sending sticker:", error);
+    res.status(500).json({ 
+      success: false, 
+      message: "เกิดข้อผิดพลาดในการส่ง sticker", 
+      error: error.message 
+    });
+  }
+});
+
+// แก้ไขข้อความ
+router.put('/messages/:messageId', verifyToken, chatController.editMessage);
+
+// ลบข้อความ
+router.delete('/messages/:messageId', verifyToken, chatController.deleteMessage);
+
+// เพิ่ม reaction
+router.post('/messages/:messageId/reactions', verifyToken, chatController.addReaction);
+
+// ลบ reaction
+router.delete('/messages/:messageId/reactions', verifyToken, async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const userId = req.user._id;
+    const { Message } = require('../../schemas/v1/chat.schema');
+
+    const message = await Message.findById(messageId);
+    if (!message) {
+      return res.status(404).json({ 
+        success: false, 
+        message: "ไม่พบข้อความ" 
+      });
+    }
+
+    // ลบ reaction ของ user
+    message.reactions = message.reactions.filter(
+      r => r.userId.toString() !== userId.toString()
+    );
+
+    await message.save();
+
+    res.status(200).json({
+      success: true,
+      message: "ลบ reaction สำเร็จ",
+      reactions: message.reactions
+    });
+
+  } catch (error) {
+    console.error("Error removing reaction:", error);
+    res.status(500).json({ 
+      success: false, 
+      message: "เกิดข้อผิดพลาดในการลบ reaction", 
+      error: error.message 
+    });
+  }
+});
+
+// อัพเดทสถานะการอ่าน
+router.post('/rooms/:chatRoomId/read', verifyToken, chatController.markAsRead);
+
+// ดึงจำนวน unread messages ทั้งหมด
+router.get('/unread/total', verifyToken, chatController.getTotalUnreadCount);
+
+// ดึงสถิติการอ่านข้อความ
+router.get('/messages/:messageId/read-stats', verifyToken, chatController.getMessageReadStats);
+
+// อัพเดทสถานะ delivery
+router.post('/messages/:messageId/delivered', verifyToken, chatController.markAsDelivered);
+
+// ส่งต่อข้อความ
+router.post('/messages/:messageId/forward', verifyToken, async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const { chatRoomIds } = req.body;
+    const userId = req.user._id;
+    const { Message, ChatRoom } = require('../../schemas/v1/chat.schema');
+
+    if (!chatRoomIds || !Array.isArray(chatRoomIds) || chatRoomIds.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "กรุณาระบุห้องแชทที่ต้องการส่งต่อ" 
+      });
+    }
+
+    // ดึงข้อความต้นฉบับ
+    const originalMessage = await Message.findById(messageId);
+    if (!originalMessage) {
+      return res.status(404).json({ 
+        success: false, 
+        message: "ไม่พบข้อความต้นฉบับ" 
+      });
+    }
+
+    const forwardedMessages = [];
+
+    // ส่งต่อไปยังห้องแชททั้งหมด
+    for (const chatRoomId of chatRoomIds) {
+      // ตรวจสอบสิทธิ์ในห้องแชท
+      const chatRoom = await ChatRoom.findById(chatRoomId);
+      if (!chatRoom) continue;
+
+      const isParticipant = chatRoom.participants.some(
+        p => p.userId.toString() === userId.toString() && p.isActive
+      );
+      if (!isParticipant) continue;
+
+      // สร้างข้อความใหม่
+      const forwardedMessage = new Message({
+        chatRoom: chatRoomId,
+        sender: userId,
+        type: originalMessage.type,
+        content: originalMessage.content,
+        mediaInfo: originalMessage.mediaInfo,
+        stickerInfo: originalMessage.stickerInfo,
+        forwardedFrom: {
+          originalMessageId: originalMessage._id,
+          originalSender: originalMessage.sender,
+          forwardedAt: new Date()
+        },
+        order: Date.now(),
+        status: "sent"
+      });
+
+      await forwardedMessage.save();
+
+      // อัพเดทห้องแชท
+      chatRoom.lastMessage = forwardedMessage._id;
+      chatRoom.lastMessageTime = new Date();
+      chatRoom.messageCount += 1;
+      await chatRoom.save();
+
+      forwardedMessages.push(forwardedMessage);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "ส่งต่อข้อความสำเร็จ",
+      forwardedMessages
+    });
+
+  } catch (error) {
+    console.error("Error forwarding message:", error);
+    res.status(500).json({ 
+      success: false, 
+      message: "เกิดข้อผิดพลาดในการส่งต่อข้อความ", 
+      error: error.message 
+    });
+  }
+});
+
+// ================= STICKER ROUTES =================
+
+// ดึงรายการ sticker sets
+router.get('/stickers/sets', verifyToken, chatController.getStickerSets);
+
+// ดึงรายละเอียด sticker set
+router.get('/stickers/sets/:setId', verifyToken, async (req, res) => {
+  try {
+    const { setId } = req.params;
+    const { StickerSet } = require('../../schemas/v1/chat.schema');
+
+    const stickerSet = await StickerSet.findById(setId);
+    if (!stickerSet) {
+      return res.status(404).json({ 
+        success: false, 
+        message: "ไม่พบชุด sticker" 
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      stickerSet
+    });
+
+  } catch (error) {
+    console.error("Error fetching sticker set:", error);
+    res.status(500).json({ 
+      success: false, 
+      message: "เกิดข้อผิดพลาดในการดึงข้อมูลชุด sticker", 
+      error: error.message 
+    });
+  }
+});
+
+// ดึง stickers ในชุด
+router.get('/stickers/sets/:setId/stickers', verifyToken, chatController.getStickersInSet);
+
+// ดาวน์โหลด sticker set
+router.post('/stickers/sets/:setId/download', verifyToken, chatController.downloadStickerSet);
+
+// ดึงรายการ sticker ที่ user มี
+router.get('/stickers/my-collections', verifyToken, chatController.getUserStickerSets);
+
+// ค้นหา sticker
+router.get('/stickers/search', verifyToken, async (req, res) => {
+  try {
+    const { q, limit = 20 } = req.query;
+    const { Sticker } = require('../../schemas/v1/chat.schema');
+
+    if (!q) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "กรุณาระบุคำค้นหา" 
+      });
+    }
+
+    const stickers = await Sticker.find({
+      $or: [
+        { name: { $regex: q, $options: 'i' } },
+        { keywords: { $in: [new RegExp(q, 'i')] } }
+      ],
+      isActive: true
+    })
+    .populate('setId', 'nameTH nameEN')
+    .limit(parseInt(limit));
+
+    res.status(200).json({
+      success: true,
+      stickers
+    });
+
+  } catch (error) {
+    console.error("Error searching stickers:", error);
+    res.status(500).json({ 
+      success: false, 
+      message: "เกิดข้อผิดพลาดในการค้นหา sticker", 
+      error: error.message 
+    });
+  }
+});
+
+// ================= UTILITY ROUTES =================
+
+// ดึงสถิติห้องแชท
+router.get('/rooms/:chatRoomId/stats', verifyToken, async (req, res) => {
+  try {
+    const { chatRoomId } = req.params;
+    const { Message } = require('../../schemas/v1/chat.schema');
+
+    const stats = await Message.aggregate([
+      { $match: { chatRoom: mongoose.Types.ObjectId(chatRoomId), isDeleted: false } },
+      {
+        $group: {
+          _id: null,
+          totalMessages: { $sum: 1 },
+          messagesByType: {
+            $push: {
+              type: "$type",
+              count: { $sum: 1 }
+            }
+          },
+          totalReactions: { $sum: { $size: "$reactions" } },
+          activeUsers: { $addToSet: "$sender" }
+        }
+      }
+    ]);
+
+    res.status(200).json({
+      success: true,
+      stats: stats[0] || {
+        totalMessages: 0,
+        messagesByType: [],
+        totalReactions: 0,
+        activeUsers: []
+      }
+    });
+
+  } catch (error) {
+    console.error("Error fetching chat stats:", error);
+    res.status(500).json({ 
+      success: false, 
+      message: "เกิดข้อผิดพลาดในการดึงสถิติ", 
+      error: error.message 
+    });
+  }
+});
+
+module.exports = router;

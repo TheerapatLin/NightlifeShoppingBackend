@@ -16,7 +16,6 @@ const {
   logout,
   refresh,
   refreshWeb,
-  dashboard,
   googleCallback,
   lineCallback,
   googleFlutterLogin,
