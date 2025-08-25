@@ -2,7 +2,7 @@ const jwt = require("jsonwebtoken");
 const JWT_ACCESS_TOKEN_SECRET = process.env.JWT_ACCESS_TOKEN_SECRET;
 const JWT_REFRESH_TOKEN_SECRET = process.env.JWT_REFRESH_TOKEN_SECRET;
 const SUPER_ADMIN_API_KEY = process.env.SUPER_ADMIN_API_KEY;
-const redis = require("../app");
+const redis = require("../modules/database/redis");
 
 const { TokenExpiredError } = jwt;
 
@@ -74,7 +74,7 @@ const verifyAccessToken = async (req, res, next) => {
         //     .status(401)
         //     .send({ status: "error", message: "Hardware ID does not exist!" });
         // }
-        const lastAccessToken = await redis.get(
+        const lastAccessToken = await redis.GET(
           `Last_Access_Token_${decoded.userId}_${req.headers["device-fingerprint"]}`
         );
         if (lastAccessToken !== accessToken) {
@@ -153,7 +153,7 @@ const verifyAccessTokenWeb = async (req, res, next) => {
           console.log(`----- decoded.userId = ${decoded.userId}`);
           const redisKey = `Last_Access_Token_${decoded.userId}_${req.headers["device-fingerprint"]}`;
           console.log(`----- Redis Key = ${redisKey}`);
-          const lastAccessToken = await redis.get(redisKey);
+          const lastAccessToken = await redis.GET(redisKey);
           console.log(`----- lastAccessToken from Redis = ${lastAccessToken}`);
           console.log(`----- Current accessToken = ${accessToken}`);
           console.log(`----- Tokens match? = ${lastAccessToken === accessToken}`);
@@ -223,7 +223,7 @@ const verifyAccessTokenWebPass = async (req, res, next) => {
           req.user = null;
           //return accessTokenCatchError(err, res);
         } else {
-          const lastAccessToken = await redis.get(
+          const lastAccessToken = await redis.GET(
             `Last_Access_Token_${decoded.userId}_${req.headers["device-fingerprint"]}`
           );
           if (lastAccessToken !== cookieAccessToken) {
@@ -278,9 +278,8 @@ const verifyRefreshToken = (req, res, next) => {
     if (err) {
       return refreshTokenCatchError(err, res);
     } else {
-      let savedRefreshToken = await redis.get(
-        `Last_Refresh_Token_${decoded.userId}_${hardwareID}`,
-        refreshToken
+      let savedRefreshToken = await redis.GET(
+        `Last_Refresh_Token_${decoded.userId}_${hardwareID}`
       );
 
       if (savedRefreshToken !== refreshToken) {

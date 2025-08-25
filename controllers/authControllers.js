@@ -17,7 +17,7 @@ require("dotenv").config({ path: `.env.${process.env.NODE_ENV}` });
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const client = new OAuth2Client(CLIENT_ID);
 
-const redis = require("../app");
+const redis = require("../modules/database/redis");
 
 const sendEmail = require("../modules/email/sendVerifyEmail");
 const sendEmailForgot = require("../modules/email/sendEmailForgot");
@@ -361,7 +361,7 @@ const login = async (req, res, next) => {
           { expiresIn: process.env.REFRESH_TOKEN_EXPIRES }
         );
 
-        await redis.sAdd(
+        await redis.SADD(
           `Device_Fingerprint_${foundUserId}`,
           deviceFingerprint
         );
@@ -560,7 +560,7 @@ const googleWebLogin = async (req, res) => {
       { expiresIn: process.env.REFRESH_TOKEN_EXPIRES }
     );
 
-    await redis.sAdd(`Device_Fingerprint_${userId}`, deviceFingerprint);
+    await redis.SADD(`Device_Fingerprint_${userId}`, deviceFingerprint);
     await redis.set(`Last_Login_${userId}_${deviceFingerprint}`, Date.now());
 
     const refreshTokenOTP = Math.floor(
@@ -929,8 +929,8 @@ const googleFlutterLogin = async (req, res) => {
             process.env.JWT_REFRESH_TOKEN_SECRET,
             { expiresIn: process.env.REFRESH_TOKEN_EXPIRES }
           );
-          redis.sAdd(`Mac_Address_${foundUserId}`, req.headers["mac-address"]);
-          redis.sAdd(`Hardware_ID_${foundUserId}`, req.headers["hardware-id"]);
+          redis.SADD(`Mac_Address_${foundUserId}`, req.headers["mac-address"]);
+          redis.SADD(`Hardware_ID_${foundUserId}`, req.headers["hardware-id"]);
 
           //? Add Last Login Date to Redis
           redis.set(`Last_Login_${foundUserId}_${hardwareId}`, Date.now());
