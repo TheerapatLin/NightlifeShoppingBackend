@@ -284,17 +284,21 @@ exports.searchUsers = async (req, res) => {
       $and: [
         {
           // ไม่ใช่ตัวเอง
-          _id: { $ne: userId }
+          _id: { $ne: new mongoose.Types.ObjectId(userId) }
         },
         {
-          // อนุญาตให้ค้นหาได้
-          "privacySettings.searchable": true
+          // อนุญาตให้ค้นหาได้ (รวม users ที่ไม่มี privacy settings)
+          $or: [
+            { "privacySettings.searchable": true },
+            { "privacySettings.searchable": { $exists: false } },
+            { "privacySettings": { $exists: false } }
+          ]
         },
         {
           // ไม่ได้บล็อกกัน
           $and: [
-            { "blockedUsers.userId": { $ne: userId } },
-            { "blockedBy.userId": { $ne: userId } }
+            { "blockedUsers.userId": { $ne: new mongoose.Types.ObjectId(userId) } },
+            { "blockedBy.userId": { $ne: new mongoose.Types.ObjectId(userId) } }
           ]
         },
         {

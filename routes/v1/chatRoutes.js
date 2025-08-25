@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { verifyToken } = require('../../middlewares/auth');
+const { verifyToken, verifyJWT } = require('../../middlewares/auth');
 const multer = require('multer');
 const { uploadToOSS } = require('../../modules/storage/oss');
 
@@ -31,19 +31,19 @@ const upload = multer({
 // ================= CHAT ROOM ROUTES =================
 
 // สร้างห้องแชทใหม่
-router.post('/rooms', verifyToken, async (req, res) => {
+router.post('/rooms', verifyJWT, async (req, res) => {
   const { createChatRoom } = require('../../controllers/chatControllers');
   await createChatRoom(req, res);
 });
 
 // ดึงรายการห้องแชทของ user
-router.get('/rooms', verifyToken, async (req, res) => {
+router.get('/rooms', verifyJWT, async (req, res) => {
   const { getUserChatRooms } = require('../../controllers/chatControllers');
   await getUserChatRooms(req, res);
 });
 
 // ดูรายละเอียดห้องแชท
-router.get('/rooms/:chatRoomId', verifyToken, async (req, res) => {
+router.get('/rooms/:chatRoomId', verifyJWT, async (req, res) => {
   try {
     const { chatRoomId } = req.params;
     const userId = req.user._id;
@@ -89,13 +89,13 @@ router.get('/rooms/:chatRoomId', verifyToken, async (req, res) => {
 });
 
 // เข้าร่วมห้องแชท
-router.post('/rooms/:chatRoomId/join', verifyToken, async (req, res) => {
+router.post('/rooms/:chatRoomId/join', verifyJWT, async (req, res) => {
   const { joinChatRoom } = require('../../controllers/chatControllers');
   await joinChatRoom(req, res);
 });
 
 // ออกจากห้องแชท
-router.post('/rooms/:chatRoomId/leave', verifyToken, async (req, res) => {
+router.post('/rooms/:chatRoomId/leave', verifyJWT, async (req, res) => {
   const { leaveChatRoom } = require('../../controllers/chatControllers');
   await leaveChatRoom(req, res);
 });
@@ -103,13 +103,13 @@ router.post('/rooms/:chatRoomId/leave', verifyToken, async (req, res) => {
 // ================= MESSAGE ROUTES =================
 
 // ดึงข้อความในห้องแชท
-router.get('/rooms/:chatRoomId/messages', verifyToken, async (req, res) => {
+router.get('/rooms/:chatRoomId/messages', verifyJWT, async (req, res) => {
   const { getChatMessages } = require('../../controllers/chatControllers');
   await getChatMessages(req, res);
 });
 
 // ส่งข้อความธรรมดา
-router.post('/rooms/:chatRoomId/messages', verifyToken, async (req, res) => {
+router.post('/rooms/:chatRoomId/messages', verifyJWT, async (req, res) => {
   const { sendMessage } = require('../../controllers/chatControllers');
   await sendMessage(req, res);
 });

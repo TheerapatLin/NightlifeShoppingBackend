@@ -24,6 +24,8 @@ redis.on("connect", () => console.log(chalk.green("Redis Connected")));
 redis.on("ready", () => console.log(chalk.green("Redis Ready")));
 redis.on("error", (err) => console.log("Redis Client Error", err));
 
+module.exports = redis;
+
 //? Modules
 require("dotenv").config({ path: `.env.${process.env.NODE_ENV}` });
 
@@ -732,4 +734,4 @@ app.use(function (err, req, res, next) {
   res.render("error");
 });
 
-module.exports = app;
+module.exports = { app, server, io };

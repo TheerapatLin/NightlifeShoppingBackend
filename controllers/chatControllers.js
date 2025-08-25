@@ -1,5 +1,5 @@
 const { ChatRoom, Message, StickerSet, Sticker, UserStickerCollection } = require("../schemas/v1/chat.schema");
-const { User } = require("../schemas/v1/user.schema");
+const User = require("../schemas/v1/user.schema");
 const mongoose = require("mongoose");
 const { addImageProcessingJob, addVideoProcessingJobs } = require("../queues/mediaQueue");
 
@@ -9,7 +9,12 @@ const { addImageProcessingJob, addVideoProcessingJobs } = require("../queues/med
 exports.createChatRoom = async (req, res) => {
   try {
     const { name, type, participants, activityId, description, avatar } = req.body;
-    const userId = req.user._id;
+    
+    console.log('🔍 Debug createChatRoom:');
+    console.log('  - req.user:', JSON.stringify(req.user, null, 2));
+    console.log('  - req.body:', JSON.stringify(req.body, null, 2));
+    
+    const userId = req.user._id || req.user.userId;
 
     // ตรวจสอบข้อมูลพื้นฐาน
     if (!name || !type || !participants || participants.length === 0) {
@@ -121,20 +126,29 @@ exports.createChatRoom = async (req, res) => {
 // ดึงรายการห้องแชทของ user
 exports.getUserChatRooms = async (req, res) => {
   try {
-    const userId = req.user._id;
+    const userId = req.user._id || req.user.userId;
     const { page = 1, limit = 20 } = req.query;
+    
+    console.log('🔍 getUserChatRooms - User ID:', userId);
+    console.log('🔍 getUserChatRooms - req.user:', JSON.stringify(req.user, null, 2));
 
-    const chatRooms = await ChatRoom.find({
+    const query = {
       "participants.userId": userId,
       "participants.isActive": true,
       status: "active"
-    })
+    };
+    
+    console.log('🔍 Query:', JSON.stringify(query, null, 2));
+
+    const chatRooms = await ChatRoom.find(query)
     .populate('participants.userId', 'name avatar email')
     .populate('lastMessage')
     .populate('activityId', 'name images')
     .sort({ lastMessageTime: -1 })
     .limit(limit * 1)
     .skip((page - 1) * limit);
+    
+    console.log('🔍 Found chat rooms:', chatRooms.length);
 
     // ดึงจำนวน unread messages จาก chatRoom schema (เร็วกว่า)
     const chatRoomsWithUnread = chatRooms.map(room => {
@@ -147,7 +161,8 @@ exports.getUserChatRooms = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      chatRooms: chatRoomsWithUnread,
+      data: chatRoomsWithUnread,
+      chatRooms: chatRoomsWithUnread, // keep for backward compatibility
       pagination: {
         currentPage: parseInt(page),
         totalPages: Math.ceil(chatRooms.length / limit)
@@ -329,8 +344,9 @@ exports.leaveChatRoom = async (req, res) => {
 // ส่งข้อความ
 exports.sendMessage = async (req, res) => {
   try {
-    const { chatRoomId, type, content, mediaInfo, stickerInfo, replyTo } = req.body;
-    const userId = req.user._id;
+    const chatRoomId = req.params.chatRoomId || req.body.chatRoomId;
+    const { type, content, mediaInfo, stickerInfo, replyTo } = req.body;
+    const userId = req.user._id || req.user.userId;
 
     // ตรวจสอบห้องแชท
     const chatRoom = await ChatRoom.findById(chatRoomId);
@@ -438,6 +454,26 @@ exports.sendMessage = async (req, res) => {
       { path: 'replyTo', select: 'content sender type', populate: { path: 'sender', select: 'name' } }
     ]);
 
+    // ส่ง real-time message ผ่าน WebSocket
+    const io = req.app.get('io');
+    if (io) {
+      const messageData = {
+        messageId: newMessage._id,
+        chatRoomId: chatRoomId,
+        sender: {
+          _id: userId,
+          name: req.user.name || newMessage.sender?.name || 'Unknown'
+        },
+        type: newMessage.type,
+        content: newMessage.content,
+        timestamp: newMessage.timestamp,
+        order: newMessage.order
+      };
+      
+      io.to(chatRoomId).emit('new_message', messageData);
+      console.log(`📡 Sent real-time message to room: ${chatRoomId}`);
+    }
+
     res.status(201).json({
       success: true,
       message: "ส่งข้อความสำเร็จ",
@@ -459,10 +495,15 @@ exports.getChatMessages = async (req, res) => {
   try {
     const { chatRoomId } = req.params;
     const { page = 1, limit = 50, before } = req.query;
-    const userId = req.user._id;
+    const userId = req.user._id || req.user.userId;
+    
+    console.log('📨 getChatMessages - User ID:', userId);
+    console.log('📨 getChatMessages - Chat Room ID:', chatRoomId);
 
     // ตรวจสอบสิทธิ์
     const chatRoom = await ChatRoom.findById(chatRoomId);
+    console.log('📨 Found chat room:', chatRoom ? 'YES' : 'NO');
+    
     if (!chatRoom) {
       return res.status(404).json({ 
         success: false, 

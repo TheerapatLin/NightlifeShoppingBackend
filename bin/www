@@ -3,7 +3,7 @@
 /**
  * Module dependencies.
  */
-const { app } = require('../app');
+const app = require('../app');
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
@@ -35,6 +35,9 @@ if (useHttps) {
 }
 
 const io = socketIo(server);
+
+// ทำให้ io instance พร้อมใช้งานใน controllers
+app.set('io', io);
 
 io.on('connection', (socket) => {
   console.log('User connected to socket.io');

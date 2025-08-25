@@ -6,9 +6,9 @@ const redis = require('../database/redis');
 
 
 const abcRateLimiter = rateLimit({
-    store: new RedisStore({
+    /*store: new RedisStore({
         sendCommand: (...args) => redis.sendCommand(args),
-    }),
+    }),*/
     windowMs: 10 * 60 * 1000, // 10 minutes
     max: 10, // limit each IP to 5 requests per window Ms
     standardHeaders: true,
