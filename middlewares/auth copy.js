@@ -120,10 +120,10 @@ const verifyAccessTokenWeb = async (req, res, next) => {
     let macAddressRegex = new RegExp(
       /^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})|([0-9a-fA-F]{4}.[0-9a-fA-F]{4}.[0-9a-fA-F]{4})$/
     );
-    console.log("----- verifyAccessTokenWeb ");
-    console.log(`----- cookieAccessToken = ${cookieAccessToken}`);
-    console.log(`----- headerAccessToken = ${headerAccessToken}`);
-    console.log(`----- accessToken = ${accessToken}`);
+    //console.log("----- verifyAccessTokenWeb ");
+    //console.log(`----- cookieAccessToken = ${cookieAccessToken}`);
+    //console.log(`----- headerAccessToken = ${headerAccessToken}`);
+    //console.log(`----- accessToken = ${accessToken}`);
     
     if (!req.headers["device-fingerprint"]) {
       //console.log("Device-fingerprint is required!");
@@ -131,7 +131,7 @@ const verifyAccessTokenWeb = async (req, res, next) => {
         .status(401)
         .send({ status: "error", message: "Device-fingerprint is required!" });
     } else {
-      console.log(`----- device-fingerprint = ${req.headers["device-fingerprint"]}`);
+      //console.log(req.headers["device-fingerprint"]);
     }
 
     if (!accessToken) {
@@ -150,22 +150,16 @@ const verifyAccessTokenWeb = async (req, res, next) => {
           return accessTokenCatchError(err, res);
         } else {
 
-          console.log(`----- decoded.userId = ${decoded.userId}`);
-          const redisKey = `Last_Access_Token_${decoded.userId}_${req.headers["device-fingerprint"]}`;
-          console.log(`----- Redis Key = ${redisKey}`);
-          const lastAccessToken = await redis.get(redisKey);
-          console.log(`----- lastAccessToken from Redis = ${lastAccessToken}`);
-          console.log(`----- Current accessToken = ${accessToken}`);
-          console.log(`----- Tokens match? = ${lastAccessToken === accessToken}`);
-          
+          //console.log(`decoded.userId = ${decoded.userId}`);
+          const lastAccessToken = await redis.get(
+            `Last_Access_Token_${decoded.userId}_${req.headers["device-fingerprint"]}`
+          );
+          //console.log("lastAccessToken = ", lastAccessToken);
           if (lastAccessToken !== accessToken) {
-            console.log(`❌ Token mismatch! Returning 401`);
             return res.status(401).send({
               status: "error",
               message: `Incorrect Access Token! lastAccessToken = ${lastAccessToken}`,
             });
-          } else {
-            console.log(`✅ Tokens match! Proceeding...`);
           }
         }
         //console.log(`decode = ${JSON.stringify(decoded)}`);

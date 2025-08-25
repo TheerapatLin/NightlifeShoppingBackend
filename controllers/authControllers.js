@@ -383,10 +383,15 @@ const login = async (req, res, next) => {
           `Last_Refresh_Token_${foundUserId}_${deviceFingerprint}`,
           refreshToken
         );
-        redis.set(
-          `Last_Access_Token_${foundUserId}_${deviceFingerprint}`,
-          accessToken
-        );
+        
+        // Log การบันทึก Access Token ลง Redis
+        const redisKey = `Last_Access_Token_${foundUserId}_${deviceFingerprint}`;
+        console.log(`📝 LOGIN: Saving Access Token to Redis with key: ${redisKey}`);
+        console.log(`📝 LOGIN: Access Token: ${accessToken}`);
+        
+        redis.set(redisKey, accessToken);
+        
+        console.log(`✅ LOGIN: Access Token saved to Redis successfully`);
 
         res.cookie("accessToken", accessToken, {
           path: "/",
@@ -570,10 +575,14 @@ const googleWebLogin = async (req, res) => {
       `Last_Refresh_Token_${userId}_${deviceFingerprint}`,
       refreshToken
     );
-    await redis.set(
-      `Last_Access_Token_${userId}_${deviceFingerprint}`,
-      accessToken
-    );
+    // Log การบันทึก Access Token ลง Redis สำหรับ Google Login
+    const googleRedisKey = `Last_Access_Token_${userId}_${deviceFingerprint}`;
+    console.log(`📝 GOOGLE LOGIN: Saving Access Token to Redis with key: ${googleRedisKey}`);
+    console.log(`📝 GOOGLE LOGIN: Access Token: ${accessToken}`);
+    
+    await redis.set(googleRedisKey, accessToken);
+    
+    console.log(`✅ GOOGLE LOGIN: Access Token saved to Redis successfully`);
 
     res.cookie("accessToken", accessToken, {
       path: "/",
