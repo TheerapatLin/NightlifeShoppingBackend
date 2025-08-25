@@ -20,6 +20,7 @@ connectMongoDB();
   await redis.connect();
 })();
 
+
 redis.on("connect", () => console.log(chalk.green("Redis Connected")));
 redis.on("ready", () => console.log(chalk.green("Redis Ready")));
 redis.on("error", (err) => console.log("Redis Client Error", err));
