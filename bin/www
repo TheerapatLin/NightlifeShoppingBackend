@@ -39,10 +39,113 @@ const io = socketIo(server);
 // ทำให้ io instance พร้อมใช้งานใน controllers
 app.set('io', io);
 
+// Online users map
+const onlineUsers = new Map();
+
 io.on('connection', (socket) => {
-  console.log('User connected to socket.io');
+  console.log('🔌 🔥 USER CONNECTED TO WEBSOCKET:', socket.id);
+  
+  // Authentication event
+  socket.on('authenticate', async (data) => {
+    try {
+      console.log('🔐 🔥 AUTHENTICATE EVENT RECEIVED:', data);
+      const { token } = data;
+      
+      if (!token) {
+        socket.emit('error', { message: 'Token is required' });
+        return;
+      }
+
+      // Verify JWT token
+      const jwt = require('jsonwebtoken');
+      const decoded = jwt.verify(token, process.env.JWT_ACCESS_TOKEN_SECRET);
+      const verifiedUserId = decoded.userId || decoded._id;
+      
+      socket.userId = verifiedUserId;
+      socket.authenticated = true;
+      
+      console.log(`🔐 JWT verified - User ID: ${verifiedUserId}`);
+      
+      // Add to online users
+      onlineUsers.set(verifiedUserId, {
+        socketId: socket.id,
+        userId: verifiedUserId,
+        connectedAt: new Date(),
+        status: "online"
+      });
+      
+      socket.emit("authenticated", {
+        message: "Authentication successful",
+        userId: verifiedUserId
+      });
+      
+      socket.broadcast.emit("user_online", { userId: verifiedUserId });
+      console.log(`✅ User ${verifiedUserId} authenticated with socket ${socket.id}`);
+      
+    } catch (error) {
+      console.error('❌ Authentication error:', error);
+      socket.emit('error', { message: 'Authentication failed' });
+    }
+  });
+
+  // Join chat room event
+  socket.on('join_chat', async (data) => {
+    try {
+      console.log('🏠 🔥 JOIN_CHAT EVENT RECEIVED:', data);
+      
+      if (!socket.authenticated) {
+        socket.emit('error', { message: 'Not authenticated' });
+        return;
+      }
+
+      const { chatRoomId } = data;
+      if (!chatRoomId) {
+        socket.emit('error', { message: 'Chat room ID is required' });
+        return;
+      }
+
+      // Verify user is participant of this chat room
+      const ChatRoom = require('../schemas/v1/chat.schema').ChatRoom;
+      const chatRoom = await ChatRoom.findById(chatRoomId);
+      
+      if (!chatRoom) {
+        socket.emit('error', { message: 'Chat room not found' });
+        return;
+      }
+
+      const isParticipant = chatRoom.participants.some(
+        p => p.userId.toString() === socket.userId.toString() && p.isActive
+      );
+
+      if (!isParticipant) {
+        socket.emit('error', { message: 'Not authorized to join this room' });
+        return;
+      }
+
+      // Join the room
+      socket.join(chatRoomId);
+      console.log(`🏠 ✅ User ${socket.userId} joined chat room: ${chatRoomId}`);
+      
+      socket.emit('joined_chat', { 
+        message: 'Successfully joined chat room',
+        chatRoomId: chatRoomId
+      });
+
+    } catch (error) {
+      console.error('❌ Join chat error:', error);
+      socket.emit('error', { message: 'Failed to join chat room' });
+    }
+  });
+
+  // Disconnect event
   socket.on('disconnect', () => {
-    console.log('User disconnected from socket.io');
+    console.log('❌ User disconnected from socket.io');
+    
+    if (socket.userId) {
+      onlineUsers.delete(socket.userId);
+      socket.broadcast.emit("user_offline", { userId: socket.userId });
+      console.log(`👋 User ${socket.userId} went offline`);
+    }
   });
 });
 
