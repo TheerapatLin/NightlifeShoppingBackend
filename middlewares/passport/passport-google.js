@@ -3,7 +3,7 @@ const { v4: uuidv4 } = require('uuid');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 
-const redis = require('../../app');
+const redis = require('../../modules/database/redis');
 
 require('dotenv').config({ path: `.env.${process.env.NODE_ENV}` });
 

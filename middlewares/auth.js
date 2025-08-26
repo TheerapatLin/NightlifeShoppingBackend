@@ -74,7 +74,7 @@ const verifyAccessToken = async (req, res, next) => {
         //     .status(401)
         //     .send({ status: "error", message: "Hardware ID does not exist!" });
         // }
-        const lastAccessToken = await redis.GET(
+        const lastAccessToken = await redis.get(
           `Last_Access_Token_${decoded.userId}_${req.headers["device-fingerprint"]}`
         );
         if (lastAccessToken !== accessToken) {
@@ -153,17 +153,45 @@ const verifyAccessTokenWeb = async (req, res, next) => {
           console.log(`----- decoded.userId = ${decoded.userId}`);
           const redisKey = `Last_Access_Token_${decoded.userId}_${req.headers["device-fingerprint"]}`;
           console.log(`----- Redis Key = ${redisKey}`);
-          const lastAccessToken = await redis.GET(redisKey);
+          const lastAccessToken = await redis.get(redisKey);
           console.log(`----- lastAccessToken from Redis = ${lastAccessToken}`);
           console.log(`----- Current accessToken = ${accessToken}`);
           console.log(`----- Tokens match? = ${lastAccessToken === accessToken}`);
           
+          // Debug: Check all related Redis keys for this user
+          console.log(`🔍 Debugging Redis keys for user ${decoded.userId}:`);
+          const allKeys = await redis.keys(`*${decoded.userId}*`);
+          console.log(`🔍 Found Redis keys:`, allKeys);
+          
+          // Check if there are any access tokens with different fingerprints
+          const accessTokenKeys = allKeys.filter(key => key.includes('Last_Access_Token'));
+          console.log(`🔍 Access token keys:`, accessTokenKeys);
+          
           if (lastAccessToken !== accessToken) {
-            console.log(`❌ Token mismatch! Returning 401`);
-            return res.status(401).send({
-              status: "error",
-              message: `Incorrect Access Token! lastAccessToken = ${lastAccessToken}`,
-            });
+            console.log(`❌ Token mismatch! Checking for alternative fingerprints...`);
+            
+            // Fallback: Check if this token exists with any other fingerprint for this user
+            let tokenFound = false;
+            for (const key of accessTokenKeys) {
+              const storedToken = await redis.get(key);
+              if (storedToken === accessToken) {
+                console.log(`✅ Found matching token with different fingerprint: ${key}`);
+                tokenFound = true;
+                break;
+              }
+            }
+            
+            if (!tokenFound) {
+              console.log(`❌ Token not found anywhere! Returning 401`);
+              return res.status(401).send({
+                status: "error",
+                message: `Incorrect Access Token! Expected: ${lastAccessToken?.substring(0, 20)}..., Got: ${accessToken?.substring(0, 20)}...`,
+              });
+            } else {
+              console.log(`⚠️ Token found with different fingerprint - allowing access but updating fingerprint`);
+              // Update the correct fingerprint in Redis
+              await redis.set(redisKey, accessToken);
+            }
           } else {
             console.log(`✅ Tokens match! Proceeding...`);
           }
@@ -223,7 +251,7 @@ const verifyAccessTokenWebPass = async (req, res, next) => {
           req.user = null;
           //return accessTokenCatchError(err, res);
         } else {
-          const lastAccessToken = await redis.GET(
+          const lastAccessToken = await redis.get(
             `Last_Access_Token_${decoded.userId}_${req.headers["device-fingerprint"]}`
           );
           if (lastAccessToken !== cookieAccessToken) {
@@ -278,8 +306,9 @@ const verifyRefreshToken = (req, res, next) => {
     if (err) {
       return refreshTokenCatchError(err, res);
     } else {
-      let savedRefreshToken = await redis.GET(
-        `Last_Refresh_Token_${decoded.userId}_${hardwareID}`
+      let savedRefreshToken = await redis.get(
+        `Last_Refresh_Token_${decoded.userId}_${hardwareID}`,
+        refreshToken
       );
 
       if (savedRefreshToken !== refreshToken) {

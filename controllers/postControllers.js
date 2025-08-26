@@ -2,7 +2,7 @@ const { v4: uuidv4 } = require("uuid");
 const jwt = require("jsonwebtoken");
 const { OSSStorage, deleteFolder } = require("../modules/storage/oss.js");
 require("dotenv").config({ path: `.env.${process.env.NODE_ENV}` });
-const redis = require("../app");
+const redis = require("../modules/database/redis");
 const Post = require("../schemas/post.schema.js");
 
 

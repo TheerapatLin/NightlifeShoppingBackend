@@ -11,7 +11,7 @@ const path = require("path");
 
 require("dotenv").config({ path: `.env.${process.env.NODE_ENV}` });
 
-const redis = require("../app");
+const redis = require("../modules/database/redis");
 
 const sendVerifyEmail = require("../modules/email/sendVerifyEmail");
 const sendResetPasswordEmail = require("../modules/email/sendResetPasswordEmail");

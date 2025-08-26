@@ -361,7 +361,7 @@ const login = async (req, res, next) => {
           { expiresIn: process.env.REFRESH_TOKEN_EXPIRES }
         );
 
-        await redis.SADD(
+        await redis.sAdd(
           `Device_Fingerprint_${foundUserId}`,
           deviceFingerprint
         );
@@ -560,7 +560,7 @@ const googleWebLogin = async (req, res) => {
       { expiresIn: process.env.REFRESH_TOKEN_EXPIRES }
     );
 
-    await redis.SADD(`Device_Fingerprint_${userId}`, deviceFingerprint);
+    await redis.sAdd(`Device_Fingerprint_${userId}`, deviceFingerprint);
     await redis.set(`Last_Login_${userId}_${deviceFingerprint}`, Date.now());
 
     const refreshTokenOTP = Math.floor(
@@ -929,8 +929,8 @@ const googleFlutterLogin = async (req, res) => {
             process.env.JWT_REFRESH_TOKEN_SECRET,
             { expiresIn: process.env.REFRESH_TOKEN_EXPIRES }
           );
-          redis.SADD(`Mac_Address_${foundUserId}`, req.headers["mac-address"]);
-          redis.SADD(`Hardware_ID_${foundUserId}`, req.headers["hardware-id"]);
+          redis.sAdd(`Mac_Address_${foundUserId}`, req.headers["mac-address"]);
+          redis.sAdd(`Hardware_ID_${foundUserId}`, req.headers["hardware-id"]);
 
           //? Add Last Login Date to Redis
           redis.set(`Last_Login_${foundUserId}_${hardwareId}`, Date.now());

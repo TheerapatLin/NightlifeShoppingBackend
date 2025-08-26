@@ -2,7 +2,7 @@ const passport = require('passport');
 const LineStrategy = require('passport-line').Strategy;
 const { v4: uuidv4 } = require('uuid');
 
-const redis = require('../../app');
+const redis = require('../../modules/database/redis');
 
 require('dotenv').config({ path: `.env.${process.env.NODE_ENV}` });
 
