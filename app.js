@@ -696,6 +696,10 @@ const activityRoutes = require("./routes/v1/activityRoutes");
 const v1ActivityRouter = activityRoutes(io);
 app.use("/api/v1/activity", v1ActivityRouter);
 
+const shoppingRoutes = require("./routes/v1/shoppingRoutes")
+const v1ShoppingRoutes = shoppingRoutes(io)
+app.use("/api/v1/shopping",v1ShoppingRoutes)
+
 //? Chat Endpoints
 const v1ChatRouter = require("./routes/v1/chatRoutes");
 app.use("/api/v1/chat", v1ChatRouter);

@@ -1,0 +1,88 @@
+// schemas/v1/activityOrder.schema.js
+const mongoose = require("mongoose");
+
+const productShoppingOrderSchema = new mongoose.Schema(
+  {
+    paymentIntentId: { type: String, required: true },
+
+    productId: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "ProductShopping",
+        required: true,
+      }
+    ],
+
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+
+    status: {
+      type: String,
+      enum: ["paid", "pending", "failed", "refunded", "cancelled"],
+      default: "pending",
+    },
+
+    // ราคาที่ลูกค้าต้องจ่าย (ยังไม่รวมส่วนลด)
+    originalPrice: {
+      type: Number,
+      required: true,
+    },
+
+    // จำนวนการสั่งซื้อ
+    quantity: {
+      type: Number,
+      required: true,
+      min: 1
+    },
+
+    // ราคาที่จ่ายจริงของจำนวนสินค้า originalPrice*quantity
+    subTotal: {
+      type: Number,
+      required: true
+    },
+
+    // โมดของ payment (test / live)
+    paymentMode: {
+      type: String,
+      enum: ["test", "live"],
+      default: "test",
+    },
+
+    // ช่องทางการชำระเงิน เช่น stripe
+    paymentGateway: {
+      type: String,
+      default: "stripe",
+    },
+
+    // วันที่ลูกค้าทำการซื้อ 
+    OrderDate: {
+      type: Date,
+      default: Date.now,
+    },
+
+    // วันที่ทำการชำระเงินเสร็จ (เวลาจ่ายเสร็จ)
+    paidAt: {
+      type: Date,
+      default: null,
+    },
+
+    // ข้อมูล debug หรือ webhook response ที่เกี่ยวข้อง
+    paymentMetadata: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {},
+    },
+
+    // บันทึกหรือหมายเหตุจากแอดมิน
+    adminNote: {
+      type: String,
+      default: "",
+    },
+  },
+  { timestamps: true }
+);
+
+const ProductShoppingOrder = mongoose.model("productShoppingOrder", productShoppingOrderSchema);
+module.exports = ProductShoppingOrder;
