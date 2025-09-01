@@ -7,7 +7,6 @@ exports.createProductShopping = async (req, res) => {
     try {
         const {
             creatorId,
-            creatorName,
             title,
             description,
             originalPrice,
@@ -35,6 +34,8 @@ exports.createProductShopping = async (req, res) => {
                 .status(404)
                 .send({ error: "ไม่พบข้อมูลผู้สร้างกิจกรรม (Creator)" });
         }
+
+        const creatorName = user.user.name
 
         if (!originalPrice) {
             return res.status(400).send({ error: "ต้องระบุ original Price" });
@@ -243,8 +244,6 @@ exports.editProduct = async (req, res) => {
         let soldQuantity = 0
 
         try {
-
-
             const fieldsToUpdate = [
                 "title",
                 "description",
@@ -314,7 +313,7 @@ exports.deleteProduct = async (req, res) => {
     }
 }
 
-exports.AddVariantProduct = async (req, res) => {
+exports.AddVariantsProduct = async (req, res) => {
     try {
         const productId = req.params.productId
         const variants = req.body.variants
@@ -365,12 +364,23 @@ exports.AddVariantProduct = async (req, res) => {
             return res.status(400).json({ error: `sku ต่อไปนี้มีอยู่แล้วใน product: ${duplicateSkus.join(", ")}` });
         }
 
+        // คำนวณหาจำนวนสินค้ารวมทั้งหมดของ variant ที่จะเพิ่ม
+        const totalQuantity = variants.map(v => v.quantity)
+            .reduce((acc, cur) => acc + cur, 0)
+
+            // คำนวณหาจำนวนสินค้าที่ขายแล้วรวมทั้งหมดของ variant ที่จะเพิ่ม
+        const totalSoldQuantity = variants.map(v => v.soldQuantity)
+            .reduce((acc, cur) => acc + cur, 0)
+
         product.variants.push(...variants);
+        product.totalQuantity = product.totalQuantity + totalQuantity
+        product.soldQuantity = product.soldQuantity + totalSoldQuantity
+        product.remainingQuantity = product.remainingQuantity + (totalQuantity - totalSoldQuantity)
         await product.save();
 
         res.status(200).json({
             message: `Variant Product ${productId} added successfully`,
-            variant: variants
+            product: product
         });
     }
     catch (error) {

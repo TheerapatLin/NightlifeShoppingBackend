@@ -6,7 +6,6 @@ exports.createCategoryShopping = async (req, res) => {
     try {
         const {
             creatorId,
-            creatorName,
             slug,
             status,
         } = req.body
@@ -26,6 +25,10 @@ exports.createCategoryShopping = async (req, res) => {
                 .status(404)
                 .send({ error: "ไม่พบข้อมูลผู้สร้างกิจกรรม (Creator)" });
         }
+
+        console.log(`user => ${user}`)
+        const creatorName = user.user.name
+        console.log(`creatorName => ${creatorName}`)
 
         if (!slug) {
             return res.status(400).send({ error: "ต้องระบุ slug" });
@@ -50,7 +53,9 @@ exports.createCategoryShopping = async (req, res) => {
             status: status
         })
 
-        const saveCategory = await newCategory.save()
+        console.log(`newCategory => ${newCategory}`)
+
+        await newCategory.save()
 
         res.status(200).send({ message: `Create new category successful.` })
     }

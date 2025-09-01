@@ -15,7 +15,7 @@ const {
     getProductByCreatorId,
     editProduct,
     deleteProduct,
-    AddVariantProduct
+    AddVariantsProduct
 } = require("../../controllers/shoppingProductController")
 
 // Basket
@@ -66,7 +66,7 @@ module.exports = function (io) {
     )
     router.get("/product", getAllProductShopping)
     router.get("/product/:productId", getProductById)
-    router.get("/product/creator:creatorId", getProductByCreatorId)
+    router.get("/product/creator/:creatorId", getProductByCreatorId)
     router.patch("/product/:productId",
         [verifyAccessTokenWeb,
             authRoles(["admin", "superadmin"])
@@ -78,39 +78,46 @@ module.exports = function (io) {
         [verifyAccessTokenWeb,
             authRoles(["admin", "superadmin"])
         ],
-        deleteProduct)
+        deleteProduct
+    )
     router.patch("/product/variant/:productId",
         [verifyAccessTokenWeb,
             authRoles(["admin", "superadmin"])
         ],
-        AddVariantProduct)
+        AddVariantsProduct
+    )
 
     // basket API
     router.post("/basket",
         [verifyAccessTokenWeb,
             authRoles(["user", "admin", "superadmin"])
         ],
-        createBasketShopping)
+        createBasketShopping
+    )
     router.get("/basket/:userId",
         [verifyAccessTokenWeb,
             authRoles(["user", "admin", "superadmin"])
         ],
-        getBasketByUserId)
+        getBasketByUserId
+    )
     router.delete("/basket/:basketId",
         [verifyAccessTokenWeb,
             authRoles(["user", "admin", "superadmin"])
         ],
-        deleteBasket)
+        deleteBasket
+    )
     router.patch("/basket/clear-basket/:basketId",
         [verifyAccessTokenWeb,
             authRoles(["user", "admin", "superadmin"])
         ],
-        clearBasketAllItems)
+        clearBasketAllItems
+    )
     router.patch("/basket/addproduct-basket/:basketId",
         [verifyAccessTokenWeb,
             authRoles(["user", "admin", "superadmin"])
         ],
-        AddProductInBasket)
+        AddProductInBasket
+    )
 
     // category API
     router.post("/category",
@@ -118,7 +125,8 @@ module.exports = function (io) {
         [verifyAccessTokenWeb,
             authRoles(["admin", "superadmin"])
         ],
-        (req, res) => createCategoryShopping(req, res))
+        (req, res) => createCategoryShopping(req, res)
+    )
     router.get("/category", getAllCategories)
     router.get("/category/:categoryId", getCategoryById)
     router.get("/creator/category/:creatorId", getCategoriesByCreatorId)
@@ -133,7 +141,8 @@ module.exports = function (io) {
         [verifyAccessTokenWeb,
             authRoles(["admin", "superadmin"])
         ],
-        deleteCategory)
+        deleteCategory
+    )
 
     // PaymentIntent API
     router.post("/create-payment-intent", createShoppingPaymentIntent)
@@ -141,7 +150,8 @@ module.exports = function (io) {
         [verifyAccessTokenWeb,
             authRoles(["user", "admin", "superadmin"])
         ],
-        getShoppingOrderByUserId)
+        getShoppingOrderByUserId
+    )
     router.get("/order",
         [verifyAccessTokenWeb,
             authRoles(["admin", "superadmin"])
@@ -151,12 +161,14 @@ module.exports = function (io) {
         [verifyAccessTokenWeb,
             authRoles(["admin", "superadmin"])
         ],
-        updateShoppingOrderById)
+        updateShoppingOrderById
+    )
     router.get("/order/creator/:creatorId",
         [verifyAccessTokenWeb,
             authRoles(["admin", "superadmin"])
         ],
-        getShoppingOrderByCreaterId)
+        getShoppingOrderByCreaterId
+    )
 
     module.exports = router;
     return router;
