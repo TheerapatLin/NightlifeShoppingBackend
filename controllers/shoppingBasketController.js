@@ -187,12 +187,17 @@ exports.AddProductInBasket = async (req, res) => {
             let foundVariant = false;
             for (const variant of product.variants) {
                 if (variant.sku === sku) {
+
+                    if (variant.quantity < item.quantity) {
+                        return res.status(400).json({ message: `สินค้า ${product.name} sku: ${variant.sku} มีจำนวนไม่เพียงพอ` });
+                    }
+
                     itemData.push({
                         creator: {
                             id: product.creator.id,
                             name: product.creator.name
                         },
-                        productId: product._id, // หรือจะเก็บ product object ก็ได้
+                        productId: product._id,
                         variant: {
                             sku: variant.sku
                         },
@@ -231,10 +236,10 @@ exports.AddProductInBasket = async (req, res) => {
         existingBasket.updatedAt = new Date()
         await existingBasket.save()
 
-        res.status(200).json({ 
+        res.status(200).json({
             message: `Basket ${basketId} add item successfully`,
             existingBasket: existingBasket
-         });
+        });
     }
     catch (error) {
         res.status(500).send({ error: error.message });

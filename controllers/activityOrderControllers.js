@@ -11,6 +11,9 @@ const User = require("../schemas/v1/user.schema");
 const RegularUserData = require("../schemas/v1/userData/regularUserData.schema");
 const Activity = require("../schemas/v1/activity.schema");
 const ActivitySlot = require("../schemas/v1/activitySlot.schema");
+const BasketShopping = require("../schemas/v1/shopping/shopping.baskets.schema")
+const ProductShopping = require("../schemas/v1/shopping/shopping.products.schema")
+const ProductShoppingOrder = require("../schemas/v1/shopping/shopping.productOrder.schema")
 const crypto = require("crypto");
 const redis = require("../modules/database/redis");
 const { sendSetPasswordEmail } = require("../modules/email/email");
@@ -49,6 +52,7 @@ exports.webhookHandlerService = async (event) => {
   switch (event.type) {
     case "payment_intent.succeeded": {
       const paymentIntent = event.data.object;
+      // console.log("🎯 this is payment_intent.succeeded event:", event);
 
       // ✅ ป้องกันซ้ำจาก Stripe Retry
       const lockKey = `stripe-webhook-lock:${paymentIntent.id}:${event.type}`;
@@ -81,6 +85,7 @@ exports.webhookHandlerService = async (event) => {
       const affiliateUserId = metadata.affiliateUserId || null;
       const paymentMode = metadata.paymentMode || "test";
 
+      // console.log(`metadata => ${metadata.basketId}`)
       console.log("📦 Metadata received:", metadata);
       console.log("✅ Validating Activity & ActivitySlot");
 
@@ -246,8 +251,193 @@ exports.webhookHandlerService = async (event) => {
 
     default:
       console.log(`⚠️ Unhandled event type: ${event.type}`);
+      console.log("🎯 event:", event);
   }
 };
+
+exports.webhookHandlerShoppingService = async (event) => {
+  const stripe = getStripeInstance();
+  console.log(`event type => ${event.type}`)
+  switch (event.type) {
+    case "payment_intent.succeeded": {
+
+      const paymentIntent = event.data.object;
+
+      // ✅ ป้องกันซ้ำจาก Stripe Retry
+      const lockKey = `stripe-webhook-lock:${paymentIntent.id}:${event.type}`;
+      const locked = await redis.get(lockKey);
+
+      if (locked) {
+        console.log("⚠️ Duplicate processing blocked via Redis lock");
+        return { status: "200", message: "Duplicate blocked" };
+      }
+
+      const metadata = paymentIntent.metadata || {};
+      const paymentMode = metadata.paymentMode || "test";
+
+
+      const basketId = metadata.basketId
+      const basket = await BasketShopping.findById(basketId)
+      if (!basket) {
+        console.error(`❌ Basket with ID ${basketId} not found.`);
+        return {
+          error: true,
+          message: "Invalid basketId.",
+          status: "400",
+        };
+      }
+
+      const charge = await stripe.charges.retrieve(paymentIntent.latest_charge);
+      const { name, email } = charge.billing_details;
+
+      let user = await User.findOne({ "user.email": email });
+
+      if (!user) {
+        const regularUserData = new RegularUserData({});
+        await regularUserData.save();
+
+        user = new User({
+          role: "user",
+          user: {
+            name: name || "Unknown User",
+            email,
+            activated: false,
+            verified: { email: false, phone: false },
+          },
+          businessId: "1",
+          userType: "regular",
+          userData: regularUserData._id,
+          userTypeData: "RegularUserData",
+          affiliateCode: await generateAffiliateCode(),
+        });
+
+        await user.save();
+        const resetToken = crypto.randomBytes(32).toString("hex");
+        redis.set(`${email}-setPasswordToken`, resetToken, "EX", 3600);
+        const setPasswordLink = `${process.env.BASE_URL}/api/v1/accounts/set-password?token=${resetToken}&email=${email}`;
+        await sendSetPasswordEmail(email, setPasswordLink);
+        console.log(`✅ User created and set-password email sent: ${email}`);
+      }
+
+      const items = basket.items
+      let itemData = [];
+      let totalPrice = 0;
+
+
+      for (const item of items) {
+        const productId = item.productId;
+
+        if (item.quantity === 0) {
+          continue
+        }
+
+        if (!mongoose.Types.ObjectId.isValid(productId)) {
+          return res.status(400).json({ message: "ไม่พบ productId" });
+        }
+
+        const product = await ProductShopping.findById(productId);
+
+        if (!product) {
+          return res.status(404).json({ message: "ไม่พบ product" });
+        }
+
+        let totalSoldQuantity = 0
+
+        const sku = item.variant.sku;
+        let foundVariant = false;
+        for (const variant of product.variants) {
+          if (variant.sku === sku) {
+
+            if (variant.quantity < item.quantity) {
+              return res.status(400).json({ message: `จ่ายเงินสำเร็จแล้ว แต่สินค้า ${product.name} sku: ${variant.sku} มีจำนวนไม่เพียงพอ` });
+            }
+
+            itemData.push({
+              creator: {
+                id: product.creator.id,
+                name: product.creator.name
+              },
+              productId: product._id,
+              variant: {
+                sku: variant.sku
+              },
+              quantity: item.quantity,
+              originalPrice: variant.price,
+              totalPrice: item.quantity * variant.price
+            });
+
+            totalPrice = totalPrice + (item.quantity * variant.price)
+            totalSoldQuantity = totalSoldQuantity + item.quantity
+
+            const responseFromProductShopping = await ProductShopping.findOneAndUpdate(
+              { "variants.sku": sku }, // หาว่า variant ไหนมี sku นี้
+              {
+                $inc: {
+                  "variants.$.quantity": -item.quantity,
+                  "variants.$.soldQuantity": item.quantity
+                },
+              },
+
+              { new: true } // ให้ return document ที่อัปเดตแล้ว
+            );
+            console.log(`responseFromProductShopping => ${responseFromProductShopping}`)
+
+            foundVariant = true;
+            break; // ถ้าเจอแล้วไม่ต้องเช็คต่อ
+          }
+        }
+        if (!foundVariant) {
+          return res.status(404).json({ message: `ไม่พบ variant ที่มี sku: ${sku} ใน productId: ${productId}` });
+        }
+
+        product.remainingQuantity = product.remainingQuantity - totalSoldQuantity
+        product.soldQuantity = product.soldQuantity + totalSoldQuantity
+        console.log(`product before save => ${product}`)
+        await product.save()
+      }
+      basket.items = []
+      await basket.save()
+
+      try {
+        const orderShopping = await ProductShoppingOrder.findOneAndUpdate(
+          { paymentIntentId: paymentIntent.id },
+          {
+            paymentIntentId: paymentIntent.id,
+            items: [...itemData],
+            userId: user._id,
+            status: "paid",
+            originalPrice: totalPrice,
+            paymentMode: paymentMode,
+            paymentGateway: "stripe",
+            paidAt: new Date(),
+            paymentMetadata: {
+              chargeId: paymentIntent.latest_charge,
+              method: charge.payment_method_details?.type,
+              receiptUrl: charge.receipt_url,
+              brand: charge.payment_method_details?.card?.brand,
+              last4: charge.payment_method_details?.card?.last4,
+            },
+          },
+          { upsert: true, new: true, runValidators: true }
+        )
+
+        console.log(`✅ Order saved successfully: ${orderShopping._id}`);
+      }
+      catch (error) {
+        console.error("❌ Error saving order:", error.message);
+      }
+      break;
+    }
+    case "payment_intent.payment_failed": {
+      console.log("❌ Payment Failed");
+
+      break;
+    }
+    default:
+      console.log(`⚠️ Unhandled event type: ${event.type}`);
+      console.log("🎯 event:", event);
+  }
+}
 
 //เมื่อสถานะการจ่ายถูกส่งกลับมาจาก Stripe
 exports.webhookHandler = async (req, res) => {
@@ -261,7 +451,6 @@ exports.webhookHandler = async (req, res) => {
     let emailUser = "";
 
     const dataObject = event.data.object;
-    // console.log("dataObject => ", dataObject)
 
     switch (dataObject.object) {
       case "charge": {
@@ -273,29 +462,34 @@ exports.webhookHandler = async (req, res) => {
       default:
         console.warn("⚠️ Cannot extract email: Unknown object type");
     }
-    // console.log("emailUser => ", emailUser)
 
-    // สร้าง job และนำ job เข้าสู่ queue
-    const job = await webhookHandlerQueue.add(
-      `user-${emailUser || "unknown"}-ts-${Date.now()}`,
-      event,
-      jobOptions
-    );
+    const metaData = dataObject.metadata
 
-    // รอผลลัพธ์จากการประมวลผลใน worker
-    const response = await job.waitUntilFinished(webhookHandlerQueueEvent);
+    if (metaData.activityId) {
+      // สร้าง job และนำ job เข้าสู่ queue
+      const job = await webhookHandlerQueue.add(
+        `user-${emailUser || "unknown"}-ts-${Date.now()}`,
+        event,
+        jobOptions
+      );
 
-    if (!response) {
-      console.log("⚠️ No response returned from webhook worker.");
-      return res.status(200).json({ message: "No response, event skipped" });
-    }
+      // รอผลลัพธ์จากการประมวลผลใน worker
+      const response = await job.waitUntilFinished(webhookHandlerQueueEvent);
 
-    // if error
-    switch (response.status) {
-      case "400":
-        return res.status(400).json({ message: response.message });
-      case "404":
-        return res.status(404).json({ message: response.message });
+      if (!response) {
+        console.log("⚠️ No response returned from webhook worker.");
+        return res.status(200).json({ message: "No response, event skipped" });
+      }
+
+      // if error
+      switch (response.status) {
+        case "400":
+          return res.status(400).json({ message: response.message });
+        case "404":
+          return res.status(404).json({ message: response.message });
+      }
+    } else if (metaData.basketId) {
+      await exports.webhookHandlerShoppingService(event)
     }
 
     res.json({ received: true });
@@ -629,6 +823,8 @@ exports.createActivityPaymentIntent = async (req, res) => {
         paymentMode: process.env.STRIPE_MODE === "live" ? "live" : "test",
       },
     });
+
+    console.log("🎯 paymentIntent:", paymentIntent);
 
     return res.send({
       clientSecret: paymentIntent.client_secret,

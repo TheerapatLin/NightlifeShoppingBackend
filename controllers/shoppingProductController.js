@@ -108,7 +108,6 @@ exports.getAllProductShopping = async (req, res) => {
         if (!products || products.length === 0) {
             return res.status(404).json({ message: "ไม่พบ Products" });
         }
-
         res.status(200).send(products)
     }
     catch (error) {
@@ -133,7 +132,6 @@ exports.getProductById = async (req, res) => {
         if (!product) {
             return res.status(404).json({ message: "ไม่พบ product" });
         }
-
         res.status(200).send(product)
     }
     catch (error) {
@@ -245,7 +243,7 @@ exports.editProduct = async (req, res) => {
         let soldQuantity = 0
 
         try {
-            
+
 
             const fieldsToUpdate = [
                 "title",

@@ -1,17 +1,35 @@
-// schemas/v1/activityOrder.schema.js
 const mongoose = require("mongoose");
+
+const OrderItemShoppingSchema = new mongoose.Schema(
+  {
+    creator: {
+      id: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      name: String,
+    },
+
+    productId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'ProductShopping',
+      required: true
+    },
+
+    variant: {
+      sku: { type: String }, // รหัส variant ที่เลือก
+    },
+
+    quantity: { type: Number, required: true, min: 1 },
+
+    originalPrice: { type: Number, required: true },
+
+    totalPrice: { type: Number, required: true },
+
+  });
 
 const productShoppingOrderSchema = new mongoose.Schema(
   {
     paymentIntentId: { type: String, required: true },
 
-    productId: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "ProductShopping",
-        required: true,
-      }
-    ],
+    items: [OrderItemShoppingSchema],
 
     userId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -31,19 +49,6 @@ const productShoppingOrderSchema = new mongoose.Schema(
       required: true,
     },
 
-    // จำนวนการสั่งซื้อ
-    quantity: {
-      type: Number,
-      required: true,
-      min: 1
-    },
-
-    // ราคาที่จ่ายจริงของจำนวนสินค้า originalPrice*quantity
-    subTotal: {
-      type: Number,
-      required: true
-    },
-
     // โมดของ payment (test / live)
     paymentMode: {
       type: String,
@@ -55,12 +60,6 @@ const productShoppingOrderSchema = new mongoose.Schema(
     paymentGateway: {
       type: String,
       default: "stripe",
-    },
-
-    // วันที่ลูกค้าทำการซื้อ 
-    OrderDate: {
-      type: Date,
-      default: Date.now,
     },
 
     // วันที่ทำการชำระเงินเสร็จ (เวลาจ่ายเสร็จ)

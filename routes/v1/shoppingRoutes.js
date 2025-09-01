@@ -6,6 +6,8 @@ const express = require("express");
 const app = express();
 app.use(express.json());
 
+
+// Product
 const {
     createProductShopping,
     getAllProductShopping,
@@ -16,6 +18,7 @@ const {
     AddVariantProduct
 } = require("../../controllers/shoppingProductController")
 
+// Basket
 const {
     createBasketShopping,
     getBasketByUserId,
@@ -24,6 +27,7 @@ const {
     AddProductInBasket
 } = require("../../controllers/shoppingBasketController")
 
+// Category
 const {
     createCategoryShopping,
     getAllCategories,
@@ -33,13 +37,18 @@ const {
     deleteCategory
 } = require("../../controllers/shoppingCategoryController")
 
+// Order
 const {
-    createShoppingPaymentIntent
+    createShoppingPaymentIntent,
+    getShoppingOrderByUserId,
+    getAllShoppingOrderForSuperadmin,
+    updateShoppingOrderById,
+    getShoppingOrderByCreaterId
 } = require("../../controllers/shoppingOrderController")
 
 const {
-    verifyAccessToken,
-    verifyRefreshToken,
+    // verifyAccessToken,
+    // verifyRefreshToken,
     verifyAccessTokenWeb,
     authRoles,
 } = require("../../middlewares/auth");
@@ -49,8 +58,9 @@ module.exports = function (io) {
 
     // product API
     router.post("/product",
-        // [verifyAccessToken, 
-        // authRoles(["admin", "superadmin"])], 
+        [verifyAccessTokenWeb,
+            authRoles(["admin", "superadmin"])
+        ],
         upload.array("image", 5), (req, res) =>
         createProductShopping(req, res)
     )
@@ -58,32 +68,95 @@ module.exports = function (io) {
     router.get("/product/:productId", getProductById)
     router.get("/product/creator:creatorId", getProductByCreatorId)
     router.patch("/product/:productId",
+        [verifyAccessTokenWeb,
+            authRoles(["admin", "superadmin"])
+        ],
         upload.array("image", 3),
         editProduct
     )
-    router.delete("/product/:productId", deleteProduct)
-    router.patch("/product/variant/:productId", AddVariantProduct)
+    router.delete("/product/:productId",
+        [verifyAccessTokenWeb,
+            authRoles(["admin", "superadmin"])
+        ],
+        deleteProduct)
+    router.patch("/product/variant/:productId",
+        [verifyAccessTokenWeb,
+            authRoles(["admin", "superadmin"])
+        ],
+        AddVariantProduct)
 
     // basket API
-    router.post("/basket", createBasketShopping)
-    router.get("/basket/:userId", getBasketByUserId)
-    router.delete("/basket/:basketId", deleteBasket)
-    router.patch("/basket/clear-basket/:basketId", clearBasketAllItems)
-    router.patch("/basket/addproduct-basket/:basketId", AddProductInBasket)
+    router.post("/basket",
+        [verifyAccessTokenWeb,
+            authRoles(["user", "admin", "superadmin"])
+        ],
+        createBasketShopping)
+    router.get("/basket/:userId",
+        [verifyAccessTokenWeb,
+            authRoles(["user", "admin", "superadmin"])
+        ],
+        getBasketByUserId)
+    router.delete("/basket/:basketId",
+        [verifyAccessTokenWeb,
+            authRoles(["user", "admin", "superadmin"])
+        ],
+        deleteBasket)
+    router.patch("/basket/clear-basket/:basketId",
+        [verifyAccessTokenWeb,
+            authRoles(["user", "admin", "superadmin"])
+        ],
+        clearBasketAllItems)
+    router.patch("/basket/addproduct-basket/:basketId",
+        [verifyAccessTokenWeb,
+            authRoles(["user", "admin", "superadmin"])
+        ],
+        AddProductInBasket)
 
     // category API
-    router.post("/category", upload.array("image", 1), (req, res) => createCategoryShopping(req, res))
+    router.post("/category",
+        upload.array("image", 1),
+        [verifyAccessTokenWeb,
+            authRoles(["admin", "superadmin"])
+        ],
+        (req, res) => createCategoryShopping(req, res))
     router.get("/category", getAllCategories)
     router.get("/category/:categoryId", getCategoryById)
     router.get("/creator/category/:creatorId", getCategoriesByCreatorId)
     router.patch("/category/:categoryId",
+        [verifyAccessTokenWeb,
+            authRoles(["admin", "superadmin"])
+        ],
         upload.array("image", 3),
         editCategory
     )
-    router.delete("/category/:categoryId", deleteCategory)
+    router.delete("/category/:categoryId",
+        [verifyAccessTokenWeb,
+            authRoles(["admin", "superadmin"])
+        ],
+        deleteCategory)
 
     // PaymentIntent API
     router.post("/create-payment-intent", createShoppingPaymentIntent)
+    router.get("/order/:userId",
+        [verifyAccessTokenWeb,
+            authRoles(["user", "admin", "superadmin"])
+        ],
+        getShoppingOrderByUserId)
+    router.get("/order",
+        [verifyAccessTokenWeb,
+            authRoles(["admin", "superadmin"])
+        ],
+        getAllShoppingOrderForSuperadmin)
+    router.patch("/order/update/:orderId",
+        [verifyAccessTokenWeb,
+            authRoles(["admin", "superadmin"])
+        ],
+        updateShoppingOrderById)
+    router.get("/order/creator/:creatorId",
+        [verifyAccessTokenWeb,
+            authRoles(["admin", "superadmin"])
+        ],
+        getShoppingOrderByCreaterId)
 
     module.exports = router;
     return router;
