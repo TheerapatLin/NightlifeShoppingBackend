@@ -320,16 +320,10 @@ exports.webhookHandlerShoppingService = async (event) => {
       }
 
       const items = basket.items
-      let itemData = [];
-      let totalPrice = 0;
-
+      let adminNote = []
 
       for (const item of items) {
         const productId = item.productId;
-
-        if (item.quantity === 0) {
-          continue
-        }
 
         if (!mongoose.Types.ObjectId.isValid(productId)) {
           return res.status(400).json({ message: "ไม่พบ productId" });
@@ -341,72 +335,38 @@ exports.webhookHandlerShoppingService = async (event) => {
           return res.status(404).json({ message: "ไม่พบ product" });
         }
 
-        let totalSoldQuantity = 0
-
         const sku = item.variant.sku;
-        let foundVariant = false;
-        for (const variant of product.variants) {
-          if (variant.sku === sku) {
 
-            if (variant.quantity < item.quantity) {
-              return res.status(400).json({ message: `จ่ายเงินสำเร็จแล้ว แต่สินค้า ${product.name} sku: ${variant.sku} มีจำนวนไม่เพียงพอ` });
+        for (let index = 0; index < product.variants.length; index++) {
+          if (product._id.toString() === String(productId).trim() && product.variants[index].sku === sku) {
+            if (product.variants[index].quantity < item.quantity) {
+              console.error(`❌ จ่ายเงินแล้วแต่สินค้า ${product.variants[index].sku} มีไม่เพียงพอ`)
+              adminNote.push({
+                message: `จ่ายเงินแล้วแต่สินค้า ${product.variants[index].sku} มีไม่เพียงพอ`,
+                createdAt: Date.now()
+              });
+              product.variants[index].quantity = 0
+              product.variants[index].soldQuantity += item.quantity
+              continue
             }
-
-            itemData.push({
-              creator: {
-                id: product.creator.id,
-                name: product.creator.name
-              },
-              productId: product._id,
-              variant: {
-                sku: variant.sku
-              },
-              quantity: item.quantity,
-              originalPrice: variant.price,
-              totalPrice: item.quantity * variant.price
-            });
-
-            totalPrice = totalPrice + (item.quantity * variant.price)
-            totalSoldQuantity = totalSoldQuantity + item.quantity
-
-            const responseFromProductShopping = await ProductShopping.findOneAndUpdate(
-              { "variants.sku": sku }, // หาว่า variant ไหนมี sku นี้
-              {
-                $inc: {
-                  "variants.$.quantity": -item.quantity,
-                  "variants.$.soldQuantity": item.quantity
-                },
-              },
-
-              { new: true } // ให้ return document ที่อัปเดตแล้ว
-            );
-            console.log(`responseFromProductShopping => ${responseFromProductShopping}`)
-
-            foundVariant = true;
-            break; // ถ้าเจอแล้วไม่ต้องเช็คต่อ
+            product.variants[index].quantity -= item.quantity
+            product.variants[index].soldQuantity += item.quantity
+          } else {
+            console.error(`❌ ไม่พบ product: ${productId} หรือ sku: ${sku}`)
           }
         }
-        if (!foundVariant) {
-          return res.status(404).json({ message: `ไม่พบ variant ที่มี sku: ${sku} ใน productId: ${productId}` });
-        }
-
-        product.remainingQuantity = product.remainingQuantity - totalSoldQuantity
-        product.soldQuantity = product.soldQuantity + totalSoldQuantity
-        console.log(`product before save => ${product}`)
         await product.save()
       }
-      basket.items = []
-      await basket.save()
 
       try {
         const orderShopping = await ProductShoppingOrder.findOneAndUpdate(
           { paymentIntentId: paymentIntent.id },
           {
             paymentIntentId: paymentIntent.id,
-            items: [...itemData],
+            items: [...basket.items],
             userId: user._id,
             status: "paid",
-            originalPrice: totalPrice,
+            originalPrice: basket.totalPrice,
             paymentMode: paymentMode,
             paymentGateway: "stripe",
             paidAt: new Date(),
@@ -417,11 +377,19 @@ exports.webhookHandlerShoppingService = async (event) => {
               brand: charge.payment_method_details?.card?.brand,
               last4: charge.payment_method_details?.card?.last4,
             },
+            $push: {
+              adminNote: [...adminNote]
+            }
           },
           { upsert: true, new: true, runValidators: true }
         )
 
         console.log(`✅ Order saved successfully: ${orderShopping._id}`);
+
+        // clear items in basket
+        basket.items = []
+        basket.totalPrice = 0
+        await basket.save()
       }
       catch (error) {
         console.error("❌ Error saving order:", error.message);

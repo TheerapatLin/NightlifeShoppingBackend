@@ -74,11 +74,13 @@ const productShoppingOrderSchema = new mongoose.Schema(
       default: {},
     },
 
-    // บันทึกหรือหมายเหตุจากแอดมิน
-    adminNote: {
-      type: String,
-      default: "",
-    },
+    // บันทึกหรือหมายเหตุจากแอดมิน (เก็บเป็น array ของ object)
+    adminNote: [
+      {
+        message: { type: String, required: true },
+        createdAt: { type: Date, default: Date.now },
+      },
+    ],
   },
   { timestamps: true }
 );

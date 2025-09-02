@@ -171,31 +171,13 @@ exports.addProductsInBasket = async (req, res) => {
         const itemData = [];
 
         for (const { productId, quantity, variant } of items) {
-            if (!quantity || quantity === 0) continue;
+            if (!quantity) continue;
             if (!mongoose.Types.ObjectId.isValid(productId)) {
                 return res.status(400).json({ error: "productId ไม่ถูกต้อง" });
             }
 
             const product = await ProductShopping.findById(productId);
             if (!product) return res.status(404).json({ error: "ไม่พบ product" });
-
-            const originalItem = basket.items.find(
-                item =>
-                    item.productId.toString() === productId.toString() &&
-                    item.variant.sku === variant.sku
-            );
-            if (originalItem) {
-                for (let index = 0; index < basket.items.length; index++) {
-                    if (basket.items[index].productId.toString() === productId && basket.items[index].variant.sku === variant.sku) {
-                        basket.items[index].quantity += quantity
-                        basket.items[index].totalPrice += basket.items[index].originalPrice * quantity
-                        totalPrice += basket.items[index].totalPrice
-                        continue
-                    }
-                    console.log(`basket.items => ${basket.items[index].productId}`)
-                }
-                continue
-            }
 
             const foundVariant = product.variants.find(v => v.sku === variant.sku);
             if (!foundVariant) {
@@ -207,9 +189,27 @@ exports.addProductsInBasket = async (req, res) => {
                 });
             }
 
+            // มีอยู่แล้ว -> update
+            const originalItem = basket.items.find(
+                i => i.productId.toString() === productId.toString() && i.variant.sku === variant.sku
+            );
+            if (originalItem) {
+                if (originalItem.quantity + quantity > foundVariant.quantity) {
+                    return res.status(400).json({
+                        error: `สินค้า ${product.title} sku: ${variant.sku} มีจำนวนไม่เพียงพอ`
+                    });
+                }
+
+                originalItem.quantity += quantity;
+                const lineTotal = foundVariant.price * quantity;
+                originalItem.totalPrice += lineTotal;
+                totalPrice += lineTotal;
+                continue;
+            }
+
+            // ยังไม่มี -> push ใหม่
             const lineTotal = quantity * foundVariant.price;
             totalPrice += lineTotal;
-
             itemData.push({
                 creator: product.creator,
                 productId: product._id,
@@ -222,14 +222,15 @@ exports.addProductsInBasket = async (req, res) => {
 
         // อัพเดต basket
         basket.items.push(...itemData);
-        basket.totalPrice = basket.totalPrice + totalPrice;
+        basket.totalPrice += totalPrice;
         basket.updatedAt = new Date();
-        await basket.save()
+        await basket.save();
 
         res.status(200).json({
             message: `Basket ${basketId} add item successfully`,
-            basket: basket
+            basket
         });
+
     }
     catch (error) {
         res.status(500).send({ error: error.message });
