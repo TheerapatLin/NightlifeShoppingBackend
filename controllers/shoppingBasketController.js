@@ -78,7 +78,19 @@ exports.getBasketByUserId = async (req, res) => {
 
 exports.deleteBasket = async (req, res) => {
     try {
-        const basket = await BasketShopping.findByIdAndDelete(req.params.basketId)
+        const basketId = req.params.basketId
+
+        // ตรวจสอบว่ามี basketId หรือไม่
+        if (!basketId) {
+            return res.status(400).send({ error: "ต้องระบุ basketId" });
+        }
+
+        // ตรวจสอบว่า basketId เป็น ObjectId ที่ถูกต้องหรือไม่
+        if (!mongoose.Types.ObjectId.isValid(basketId)) {
+            return res.status(400).json({ message: "ไม่พบ basketId ที่ถูกต้อง" });
+        }
+
+        const basket = await BasketShopping.findByIdAndDelete(basketId)
 
         if (!basket) {
             return res.status(404).json({ message: "Basket not found" });
@@ -114,11 +126,10 @@ exports.clearBasketAllItems = async (req, res) => {
 
         try {
             existingBasket.items = []
-            // res.status(200).send(existingBasket)
         }
         catch (error) {
             console.error("Failed to clear the basket:", error);
-            // ส่ง response กลับไปยัง client ว่ามีข้อผิดพลาดเกิดขึ้น
+
             res.status(500).send({
                 message: "Error claering items in the basket (mayby type of datas mismatched)",
                 error: error.toString(),
@@ -126,6 +137,7 @@ exports.clearBasketAllItems = async (req, res) => {
         }
 
         existingBasket.updatedAt = new Date()
+        existingBasket.totalPrice = 0
         await existingBasket.save()
 
         res.status(200).json({ message: "Basket cleared successfully" });
@@ -135,13 +147,113 @@ exports.clearBasketAllItems = async (req, res) => {
     }
 }
 
-exports.AddProductInBasket = async (req, res) => {
+exports.addProductsInBasket = async (req, res) => {
+    try {
+        const { basketId } = req.params;
+        const { userId, items } = req.body;
+
+        // Validate basketId & userId
+        if (!basketId || !mongoose.Types.ObjectId.isValid(basketId)) {
+            return res.status(400).json({ error: "basketId ไม่ถูกต้อง" });
+        }
+        if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+            return res.status(400).json({ error: "userId ไม่ถูกต้อง" });
+        }
+
+        // หา basket
+        const basket = await BasketShopping.findById(basketId);
+        if (!basket) return res.status(404).json({ error: "ไม่พบ basketId" });
+        if (basket.userId.toString() !== userId) {
+            return res.status(403).json({ error: "You can only edit your own basket." });
+        }
+
+        let totalPrice = 0;
+        const itemData = [];
+
+        for (const { productId, quantity, variant } of items) {
+            if (!quantity || quantity === 0) continue;
+            if (!mongoose.Types.ObjectId.isValid(productId)) {
+                return res.status(400).json({ error: "productId ไม่ถูกต้อง" });
+            }
+
+            const product = await ProductShopping.findById(productId);
+            if (!product) return res.status(404).json({ error: "ไม่พบ product" });
+
+            const originalItem = basket.items.find(
+                item =>
+                    item.productId.toString() === productId.toString() &&
+                    item.variant.sku === variant.sku
+            );
+            if (originalItem) {
+                for (let index = 0; index < basket.items.length; index++) {
+                    if (basket.items[index].productId.toString() === productId && basket.items[index].variant.sku === variant.sku) {
+                        basket.items[index].quantity += quantity
+                        basket.items[index].totalPrice += basket.items[index].originalPrice * quantity
+                        totalPrice += basket.items[index].totalPrice
+                        continue
+                    }
+                    console.log(`basket.items => ${basket.items[index].productId}`)
+                }
+                continue
+            }
+
+            const foundVariant = product.variants.find(v => v.sku === variant.sku);
+            if (!foundVariant) {
+                return res.status(404).json({ error: `ไม่พบ variant sku: ${variant.sku}` });
+            }
+            if (foundVariant.quantity < quantity) {
+                return res.status(400).json({
+                    error: `สินค้า ${product.title} sku: ${variant.sku} มีจำนวนไม่เพียงพอ`
+                });
+            }
+
+            const lineTotal = quantity * foundVariant.price;
+            totalPrice += lineTotal;
+
+            itemData.push({
+                creator: product.creator,
+                productId: product._id,
+                variant: { sku: foundVariant.sku },
+                quantity,
+                originalPrice: foundVariant.price,
+                totalPrice: lineTotal
+            });
+        }
+
+        // อัพเดต basket
+        basket.items.push(...itemData);
+        basket.totalPrice = basket.totalPrice + totalPrice;
+        basket.updatedAt = new Date();
+        await basket.save()
+
+        res.status(200).json({
+            message: `Basket ${basketId} add item successfully`,
+            basket: basket
+        });
+    }
+    catch (error) {
+        res.status(500).send({ error: error.message });
+    }
+}
+
+
+exports.removeProductByIdInBasket = async (req, res) => {
     try {
         const { basketId } = req.params
         const {
             userId,
-            items
+            productId
         } = req.body
+
+        // ตรวจสอบว่ามี basketId หรือไม่
+        if (!basketId) {
+            return res.status(400).send({ error: "ต้องระบุ basketId" });
+        }
+
+        // ตรวจสอบว่า basketId เป็น ObjectId ที่ถูกต้องหรือไม่
+        if (!mongoose.Types.ObjectId.isValid(basketId)) {
+            return res.status(400).json({ message: "ไม่พบ basketId ที่ถูกต้อง" });
+        }
 
         // ตรวจสอบว่ามี userId หรือไม่
         if (!userId) {
@@ -153,6 +265,16 @@ exports.AddProductInBasket = async (req, res) => {
             return res.status(400).json({ message: "ไม่พบ userId ที่ถูกต้อง" });
         }
 
+        // ตรวจสอบว่ามี productId หรือไม่
+        if (!productId) {
+            return res.status(400).send({ error: "ต้องระบุ productId" });
+        }
+
+        // ตรวจสอบว่า productId เป็น ObjectId ที่ถูกต้องหรือไม่
+        if (!mongoose.Types.ObjectId.isValid(productId)) {
+            return res.status(400).json({ message: "ไม่พบ productId ที่ถูกต้อง" });
+        }
+
         const existingBasket = await BasketShopping.findById(basketId);
 
         if (!existingBasket) {
@@ -162,82 +284,27 @@ exports.AddProductInBasket = async (req, res) => {
         if (existingBasket.userId.toString() !== userId) {
             return res
                 .status(403)
-                .send({ error: "You can only edit your own basket." });
+                .send({ error: "You can only remove your own basket." });
         }
 
-        let itemData = [];
-        for (const item of items) {
-            const productId = item.productId;
+        // const product = await ProductShopping.findById(productId)
+        // if (!product) {
+        //     return res.status(404).send({ error: "productId not found" });
+        // }
 
-            if (item.quantity === 0) {
-                continue
-            }
+        const newItems = []
 
-            if (!mongoose.Types.ObjectId.isValid(productId)) {
-                return res.status(400).json({ message: "ไม่พบ productId" });
-            }
-
-            const product = await ProductShopping.findById(productId);
-
-            if (!product) {
-                return res.status(404).json({ message: "ไม่พบ product" });
-            }
-
-            const sku = item.variant.sku;
-            let foundVariant = false;
-            for (const variant of product.variants) {
-                if (variant.sku === sku) {
-
-                    if (variant.quantity < item.quantity) {
-                        return res.status(400).json({ message: `สินค้า ${product.name} sku: ${variant.sku} มีจำนวนไม่เพียงพอ` });
-                    }
-
-                    itemData.push({
-                        creator: {
-                            id: product.creator.id,
-                            name: product.creator.name
-                        },
-                        productId: product._id,
-                        variant: {
-                            sku: variant.sku
-                        },
-                        quantity: item.quantity,
-                        originalPrice: variant.price,
-                        totalPrice: item.quantity * variant.price
-                    });
-                    foundVariant = true;
-                    break; // ถ้าเจอแล้วไม่ต้องเช็คต่อ
-                }
-            }
-            if (!foundVariant) {
-                return res.status(404).json({ message: `ไม่พบ variant ที่มี sku: ${sku} ใน productId: ${productId}` });
+        for (const item of existingBasket.items) {
+            if (item.productId.toString() !== productId) {
+                console.log(`if productId is equal `)
+                newItems.push(item)
             }
         }
+        console.log(`newItems => ${newItems}`)
 
-        let totalPrice = 0
-        for (const item of itemData) {
-            totalPrice = totalPrice + item.totalPrice
-        }
-
-        try {
-            existingBasket.items.push(...itemData)
-            existingBasket.totalPrice = totalPrice
-        }
-        catch (error) {
-            console.error("Failed to add item in the basket:", error);
-
-            // ส่ง response กลับไปยัง client ว่ามีข้อผิดพลาดเกิดขึ้น
-            res.status(500).send({
-                message: "Error addinging items in the basket (mayby type of datas mismatched)",
-                error: error.toString(),
-            });
-        }
-
-        existingBasket.updatedAt = new Date()
-        await existingBasket.save()
 
         res.status(200).json({
-            message: `Basket ${basketId} add item successfully`,
+            message: `Product ${productId} removed successfully`,
             existingBasket: existingBasket
         });
     }

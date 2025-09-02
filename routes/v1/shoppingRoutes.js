@@ -15,7 +15,9 @@ const {
     getProductByCreatorId,
     editProduct,
     deleteProduct,
-    AddVariantsProduct
+    addVariantsProduct,
+    removeVariantInProduct,
+    editVariantProduct
 } = require("../../controllers/shoppingProductController")
 
 // Basket
@@ -24,7 +26,8 @@ const {
     getBasketByUserId,
     deleteBasket,
     clearBasketAllItems,
-    AddProductInBasket
+    addProductsInBasket,
+    removeProductByIdInBasket
 } = require("../../controllers/shoppingBasketController")
 
 // Category
@@ -80,12 +83,25 @@ module.exports = function (io) {
         ],
         deleteProduct
     )
-    router.patch("/product/variant/:productId",
+    router.patch("/product/variant/add/:productId",
         [verifyAccessTokenWeb,
             authRoles(["admin", "superadmin"])
         ],
-        AddVariantsProduct
+        addVariantsProduct
     )
+    router.delete("/product/variant/delete/:productId",
+        [verifyAccessTokenWeb,
+            authRoles(["admin", "superadmin"])
+        ],
+        removeVariantInProduct
+    )
+    router.patch("/product/variant/edit/:productId",
+        [verifyAccessTokenWeb,
+            authRoles(["admin", "superadmin"])
+        ],
+        editVariantProduct
+    )
+
 
     // basket API
     router.post("/basket",
@@ -116,7 +132,13 @@ module.exports = function (io) {
         [verifyAccessTokenWeb,
             authRoles(["user", "admin", "superadmin"])
         ],
-        AddProductInBasket
+        addProductsInBasket
+    )
+    router.delete("/basket/removeproduct-basket/:basketId",
+        [verifyAccessTokenWeb,
+            authRoles(["user", "admin", "superadmin"])
+        ],
+        removeProductByIdInBasket
     )
 
     // category API

@@ -59,16 +59,6 @@ exports.createProductShopping = async (req, res) => {
             return res.status(404).json({ message: "ไม่พบ category" });
         }
 
-        let totalQuantity = 0
-        let remainingQuantity = 0
-        let soldQuantity = 0
-
-        for (const variant of variants) {
-            totalQuantity = totalQuantity + variant.quantity
-            soldQuantity = soldQuantity + variant.soldQuantity
-        }
-
-        remainingQuantity = totalQuantity - soldQuantity
 
         const newProduct = new ProductShopping({
             creator: { id: creatorId, name: creatorName },
@@ -83,9 +73,6 @@ exports.createProductShopping = async (req, res) => {
             originalPrice: originalPrice,
             currency: currency,
             variants: variants,
-            totalQuantity: totalQuantity,
-            remainingQuantity: remainingQuantity,
-            soldQuantity: soldQuantity,
             isLimited: isLimited,
             hasEndDate: hasEndDate,
             categoryId: categoryId,
@@ -95,7 +82,10 @@ exports.createProductShopping = async (req, res) => {
 
         await newProduct.save()
 
-        res.status(200).send({ message: `Create new product successful.` })
+        res.status(200).send({
+            message: `Create new product successful.`,
+            newProduct: newProduct
+        })
     }
     catch (error) {
         res.status(500).send({ error: error.message });
@@ -239,10 +229,6 @@ exports.editProduct = async (req, res) => {
                 .send({ error: "You can only edit your own product." });
         }
 
-        let totalQuantity = 0
-        let remainingQuantity = 0
-        let soldQuantity = 0
-
         try {
             const fieldsToUpdate = [
                 "title",
@@ -263,11 +249,6 @@ exports.editProduct = async (req, res) => {
                             if (req.body[field] != null && req.body[field] != 'THB') {
                                 return res.status(400).send({ error: "ในขณะนี้ยังไม่มี logic สำหรับการแปลงสกุลเงินนี้" });
                             }
-                        case "variants":
-                            for (const variant of req.body[field]) {
-                                totalQuantity = totalQuantity + variant.quantity
-                                soldQuantity = soldQuantity + variant.soldQuantity
-                            }
                     }
                     existingProduct[field] = req.body[field];
                 }
@@ -281,10 +262,6 @@ exports.editProduct = async (req, res) => {
             });
         }
 
-        remainingQuantity = totalQuantity - soldQuantity
-        existingProduct.totalQuantity = totalQuantity
-        existingProduct.remainingQuantity = remainingQuantity
-        existingProduct.soldQuantity = soldQuantity
         existingProduct.updatedAt = new Date()
         await existingProduct.save()
 
@@ -313,7 +290,7 @@ exports.deleteProduct = async (req, res) => {
     }
 }
 
-exports.AddVariantsProduct = async (req, res) => {
+exports.addVariantsProduct = async (req, res) => {
     try {
         const productId = req.params.productId
         const variants = req.body.variants
@@ -364,22 +341,143 @@ exports.AddVariantsProduct = async (req, res) => {
             return res.status(400).json({ error: `sku ต่อไปนี้มีอยู่แล้วใน product: ${duplicateSkus.join(", ")}` });
         }
 
-        // คำนวณหาจำนวนสินค้ารวมทั้งหมดของ variant ที่จะเพิ่ม
-        const totalQuantity = variants.map(v => v.quantity)
-            .reduce((acc, cur) => acc + cur, 0)
-
-            // คำนวณหาจำนวนสินค้าที่ขายแล้วรวมทั้งหมดของ variant ที่จะเพิ่ม
-        const totalSoldQuantity = variants.map(v => v.soldQuantity)
-            .reduce((acc, cur) => acc + cur, 0)
-
         product.variants.push(...variants);
-        product.totalQuantity = product.totalQuantity + totalQuantity
-        product.soldQuantity = product.soldQuantity + totalSoldQuantity
-        product.remainingQuantity = product.remainingQuantity + (totalQuantity - totalSoldQuantity)
         await product.save();
 
         res.status(200).json({
             message: `Variant Product ${productId} added successfully`,
+            product: product
+        });
+    }
+    catch (error) {
+        res.status(500).send({ error: error.message });
+    }
+}
+
+exports.removeVariantInProduct = async (req, res) => {
+    try {
+        const productId = req.params.productId
+        const skuVariant = req.body.skuVariant
+
+        if (!productId) {
+            return res.status(400).send({ error: "ต้องระบุ productId" });
+        }
+
+        if (!mongoose.Types.ObjectId.isValid(productId)) {
+            return res.status(400).json({ message: "productId ไม่ถูกต้อง" });
+        }
+
+        const product = await ProductShopping.findById(productId)
+
+        if (!product) {
+            return res.status(404).json({ message: "ไม่พบ product" });
+        }
+
+        if (!skuVariant) {
+            return res.status(400).send({ error: "กรุณาระบุ sku ของ Variant ที่ต้องการลบ" });
+        }
+
+        let newVariant = []
+        let foundSku = false
+        let totalDeleteQuantity = 0
+        let totalDeleteSoldQuantity = 0
+        for (const variant of product.variants) {
+            if (variant.sku === skuVariant) {
+                foundSku = true
+                totalDeleteQuantity = totalDeleteQuantity + variant.quantity
+                totalDeleteSoldQuantity = totalDeleteSoldQuantity + variant.soldQuantity
+                continue
+            }
+            newVariant.push(variant)
+        }
+        if (!foundSku) {
+            return res.status(404).json({ message: `ไม่พบ variant ที่มี sku: ${sku} ใน productId: ${productId}` });
+        }
+
+        product.variants = newVariant
+        product.totalQuantity = product.totalQuantity - totalDeleteQuantity
+        product.soldQuantity = product.soldQuantity - totalDeleteSoldQuantity
+        product.remainingQuantity = product.totalQuantity - product.soldQuantity
+        product.save()
+
+        res.status(200).json({
+            message: `Variant Product: ${productId}, sku:${skuVariant}  removed successfully`,
+            newVariant: product
+        });
+    }
+    catch (error) {
+        res.status(500).send({ error: error.message });
+    }
+}
+
+exports.editVariantProduct = async (req, res) => {
+    try {
+        const productId = req.params.productId
+        const {
+            sku,
+            newSku,
+            attributes,
+            price,
+            quantity,
+            soldQuantity
+        } = req.body
+
+        if (!productId) {
+            return res.status(400).send({ error: "ต้องระบุ productId" });
+        }
+
+        if (!mongoose.Types.ObjectId.isValid(productId)) {
+            return res.status(400).json({ message: "productId ไม่ถูกต้อง" });
+        }
+
+        const product = await ProductShopping.findById(productId)
+
+        if (!product) {
+            return res.status(404).json({ message: "ไม่พบ product" });
+        }
+
+        if (!sku) {
+            return res.status(400).send({ error: "กรุณาระบุ sku ของ Variant ที่ต้องการแก้ไข" });
+        }
+
+        const existingSkus = product.variants.map(v => v.sku);
+        for (const sku of existingSkus) {
+            if (sku === newSku) {
+                return res.status(400).send({ error: `sku ที่คุณต้องการเปลี่ยนซ้ำกับ sku เดิมที่มีอยู่แล้ว (${sku})` });
+            }
+        }
+
+        let newVariant = {}
+        let foundSku = false
+
+        for (let i = 0; i < product.variants.length; i++) {
+            if (sku === product.variants[i].sku) {
+                newVariant = {
+                    sku: newSku ?? product.variants[i].sku,
+                    attributes: {
+                        size: attributes?.size ?? product.variants[i].attributes?.size,
+                        color: attributes?.color ?? product.variants[i].attributes?.color,
+                        material: attributes?.material ?? product.variants[i].attributes?.material
+                    },
+                    price: price ?? product.variants[i].price,
+                    quantity: quantity ?? product.variants[i].quantity,
+                    soldQuantity: soldQuantity ?? product.variants[i].soldQuantity
+                };
+                product.variants[i] = newVariant;
+
+                foundSku = true;
+                break; // ไม่ต้อง loop ต่อแล้ว
+            }
+        }
+
+        if (!foundSku) {
+            return res.status(404).json({ message: `ไม่พบ variant ที่มี sku: ${sku} ใน productId: ${productId}` });
+        }
+
+        await product.save()
+
+        res.status(200).json({
+            message: `Variant Product: ${productId}, sku:${sku}  saved successfully`,
             product: product
         });
     }

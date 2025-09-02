@@ -45,11 +45,9 @@ const ProductShoppingSchema = new mongoose.Schema({
 
     variants: [VariantSchema],
 
-    totalQuantity: { type: Number, required: true },
-
-    remainingQuantity: { type: Number, required: true },
-
-    soldQuantity: { type: Number, default: 0 },
+    // totalQuantity ให้ frontend คำนวณจาก Variants
+    // remainingQuantity ให้ frontend คำนวณจาก Variants
+    // soldQuantity ให้ frontend คำนวณจาก Variants
 
     isLimited: { type: Boolean, default: false },
 
