@@ -242,7 +242,8 @@ exports.removeProductByIdInBasket = async (req, res) => {
         const { basketId } = req.params
         const {
             userId,
-            productId
+            productId,
+            sku
         } = req.body
 
         // ตรวจสอบว่ามี basketId หรือไม่
@@ -275,6 +276,11 @@ exports.removeProductByIdInBasket = async (req, res) => {
             return res.status(400).json({ message: "ไม่พบ productId ที่ถูกต้อง" });
         }
 
+        // ตรวจสอบว่ามี productId หรือไม่
+        if (!sku) {
+            return res.status(400).send({ error: "ต้องระบุ sku" });
+        }
+
         const existingBasket = await BasketShopping.findById(basketId);
 
         if (!existingBasket) {
@@ -287,24 +293,24 @@ exports.removeProductByIdInBasket = async (req, res) => {
                 .send({ error: "You can only remove your own basket." });
         }
 
-        // const product = await ProductShopping.findById(productId)
-        // if (!product) {
-        //     return res.status(404).send({ error: "productId not found" });
-        // }
 
-        const newItems = []
+        let newItems = []
+        let reduceCost = 0
 
         for (const item of existingBasket.items) {
-            if (item.productId.toString() !== productId) {
-                console.log(`if productId is equal `)
-                newItems.push(item)
+            if (item.productId.toString() === productId && item.variant.sku === sku) {
+                reduceCost = reduceCost + item.totalPrice
+                continue
             }
+            newItems.push(item)
         }
-        console.log(`newItems => ${newItems}`)
 
+        existingBasket.items = newItems
+        existingBasket.totalPrice = existingBasket.totalPrice - reduceCost
+        existingBasket.save()
 
         res.status(200).json({
-            message: `Product ${productId} removed successfully`,
+            message: `Product ${productId} sku ${sku} removed successfully`,
             existingBasket: existingBasket
         });
     }
