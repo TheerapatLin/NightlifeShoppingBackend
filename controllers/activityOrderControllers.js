@@ -25,6 +25,9 @@ const {
   webhookHandlerQueueEvent,
   sendOrderBookedEmailQueue,
   sendOrderBookedEmailQueueEvent,
+  webhookHandlerShoppingQueue,
+  webhookHandlerShoppingQueueEvent,
+  sendOrderShoppingEmailQueue,
   jobOptions,
 } = require("../queues/queueInstances");
 
@@ -280,7 +283,6 @@ exports.webhookHandlerShoppingService = async (event) => {
       if (!basket) {
         console.error(`❌ Basket with ID ${basketId} not found.`);
         return {
-          error: true,
           message: "Invalid basketId.",
           status: "400",
         };
@@ -324,13 +326,19 @@ exports.webhookHandlerShoppingService = async (event) => {
         const productId = item.productId;
 
         if (!mongoose.Types.ObjectId.isValid(productId)) {
-          return res.status(400).json({ message: "ไม่พบ productId" });
+          return {
+            message: "ไม่พบ productId",
+            status: "400",
+          };
         }
 
         const product = await ProductShopping.findById(productId);
 
         if (!product) {
-          return res.status(404).json({ message: "ไม่พบ product" });
+          return {
+            message: "ไม่พบ product",
+            status: "404",
+          };
         }
 
         const sku = item.variant.sku;
@@ -349,7 +357,7 @@ exports.webhookHandlerShoppingService = async (event) => {
             }
             product.variants[index].quantity -= item.quantity
             product.variants[index].soldQuantity += item.quantity
-          } 
+          }
         }
         await product.save()
       }
@@ -386,7 +394,15 @@ exports.webhookHandlerShoppingService = async (event) => {
         basket.items = []
         basket.totalPrice = 0
         await basket.save()
-        await sendOrderShoppingBillEmail(orderShopping,user)
+        await sendOrderShoppingEmailQueue.add(
+          `sendOrder-email-${Date.now()}`,
+          {
+            orderShopping,
+            user,
+          },
+          jobOptions
+        );
+        // await sendOrderShoppingBillEmail(orderShopping, user)
       }
       catch (error) {
         console.error("❌ Error saving order:", error.message);
@@ -454,7 +470,32 @@ exports.webhookHandler = async (req, res) => {
           return res.status(404).json({ message: response.message });
       }
     } else if (metaData.basketId) {
-      await exports.webhookHandlerShoppingService(event)
+
+      
+      // สร้าง job และนำ job เข้าสู่ queue
+      const job = await webhookHandlerShoppingQueue.add(
+        `user-${emailUser || "unknown"}-ts-${Date.now()}`,
+        event,
+        jobOptions
+      );
+      console.log(`xxxxxxxxxxxxxxxxxxxxxxxxxx`)
+
+      // รอผลลัพธ์จากการประมวลผลใน worker
+      const response = await job.waitUntilFinished(webhookHandlerShoppingQueueEvent);
+      console.log(`wwwwwwwwwwwwwwwwwwwwwwww`)
+      if (!response) {
+        console.log("⚠️ No response returned from webhook worker.");
+        return res.status(200).json({ message: "No response, event skipped" });
+      }
+
+      // if error
+      switch (response.status) {
+        case "400":
+          return res.status(400).json({ message: response.message });
+        case "404":
+          return res.status(404).json({ message: response.message });
+      }
+      // await exports.webhookHandlerShoppingService(event)
     }
 
     res.json({ received: true });

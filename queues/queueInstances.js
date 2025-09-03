@@ -8,6 +8,8 @@ const connection = new IORedis(REDISDATABASEURI, {
   maxRetriesPerRequest: null,
 });
 
+const {} = require("./producer")
+
 const jobOptions = {
   attempts: 3,
   backoff: { type: "exponential", delay: 3000 },
@@ -44,6 +46,39 @@ const emailNotificationQueueEvent = new QueueEvents("email-notification-queue", 
   connection,
 });
 
+
+// ✅ webhookHandlerShopping
+const webhookHandlerShoppingQueue = new Queue("webhookHandlerShopping-queue", {
+  connection
+})
+const webhookHandlerShoppingQueueEvent = new QueueEvents("webhookHandlerShopping-queue", {
+  connection
+})
+
+// webhookHandlerShoppingQueueEvent.on('waiting', ({ jobId }) => {
+//   console.log(`A job with ID ${jobId} is waiting`);
+// });
+
+// webhookHandlerShoppingQueueEvent.on('active', ({ jobId, prev }) => {
+//   console.log(`Job ${jobId} is now active; previous status was ${prev}`);
+// });
+
+// webhookHandlerShoppingQueueEvent.on('completed', ({ jobId, returnvalue }) => {
+//   console.log(`${jobId} has completed and returned ${returnvalue}`);
+// });
+
+// webhookHandlerShoppingQueueEvent.on('failed', ({ jobId, failedReason }) => {
+//   console.log(`${jobId} has failed with reason ${failedReason}`);
+// });
+
+// ✅ Email OrderShopping Queue - สำหรับส่ง email หลังจ่ายเงินซื้อสินค้าเสร็จแล้ว
+const sendOrderShoppingEmailQueue = new Queue("sendOrderShopping-Email-queue", {
+  connection
+})
+const sendOrderShoppingEmailQueueEvent = new QueueEvents("sendOrderShopping-Email-queue", {
+  connection
+})
+
 module.exports = {
   webhookHandlerQueue,
   webhookHandlerQueueEvent,
@@ -53,6 +88,10 @@ module.exports = {
   subscriptionQueueEvent,
   emailNotificationQueue,
   emailNotificationQueueEvent,
+  webhookHandlerShoppingQueue,
+  webhookHandlerShoppingQueueEvent,
+  sendOrderShoppingEmailQueue,
+  sendOrderShoppingEmailQueueEvent,
   jobOptions,
   connection,
 };

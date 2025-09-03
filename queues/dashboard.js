@@ -7,7 +7,7 @@ const {
     sendOrderBookedEmailQueue,
     subscriptionQueue,
     emailNotificationQueue
-} = require('./producer');
+} = require('./queueInstances');
 
 const serverAdapter = new ExpressAdapter();
 serverAdapter.setBasePath('/admin/queues');
