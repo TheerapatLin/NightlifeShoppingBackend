@@ -78,7 +78,7 @@ const productShoppingOrderSchema = new mongoose.Schema(
     adminNote: [
       {
         message: { type: String, required: true },
-        createdAt: { type: Date, default: Date.now },
+        _id: false, 
       },
     ],
   },

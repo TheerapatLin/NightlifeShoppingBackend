@@ -94,22 +94,36 @@ exports.updateShoppingOrderById = async (req, res) => {
     const {
         adminNote,
         status,
-        originalPrice,
         paidAt } = req.body
 
     const updateFields = {};
 
-    if (adminNote !== undefined) updateFields.adminNote = adminNote;
     if (status !== undefined) updateFields.status = status;
-    if (originalPrice !== undefined) updateFields.originalPrice = originalPrice
     if (paidAt !== undefined) updateFields.paidAt = new Date(paidAt);
+
+    if (!orderId) {
+        res.status(400).json({ message: `กรุณาระบุ orderId` });
+    }
+
+    const order = await ProductShoppingOrder.findById(orderId)
+    if (!order) {
+        res.status(404).json({ message: `ไม่พบ order: ${orderId}` });
+    }
+    if (adminNote !== undefined) {
+        console.log(`adminNote => ${JSON.stringify(adminNote)}`)
+        order.adminNote.push(...adminNote)
+        order.save()
+        console.log(`order.adminNote => ${order.adminNote}`)
+    }
 
     try {
         const shoppingOrder = await ProductShoppingOrder.findByIdAndUpdate(
             orderId,
             updateFields,
             {
+                // new: true → จะ return document ใหม่ (ที่อัปเดตแล้ว) กลับมา
                 new: true,
+                // runValidators: true → Mongoose จะบังคับใช้ validation rules ที่ตั้งไว้ใน schema
                 runValidators: true,
             }
         )
@@ -128,7 +142,7 @@ exports.getShoppingOrderByCreaterId = async (req, res) => {
         const orders = await ProductShoppingOrder.find({
             "items.creator.id": creatorId
         });
-        if(!orders) {
+        if (!orders) {
             return res.status(404).json({ message: "ยังไม่มี order" })
         }
         res.json(orders);

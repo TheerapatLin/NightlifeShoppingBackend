@@ -260,21 +260,19 @@ exports.webhookHandlerShoppingService = async (event) => {
   console.log(`event type => ${event.type}`)
   switch (event.type) {
     case "payment_intent.succeeded": {
-
       const paymentIntent = event.data.object;
 
       // ✅ ป้องกันซ้ำจาก Stripe Retry
       const lockKey = `stripe-webhook-lock:${paymentIntent.id}:${event.type}`;
       const locked = await redis.get(lockKey);
-
       if (locked) {
         console.log("⚠️ Duplicate processing blocked via Redis lock");
         return { status: "200", message: "Duplicate blocked" };
       }
+      await redis.set(lockKey, "locked", "EX", 90);
 
       const metadata = paymentIntent.metadata || {};
       const paymentMode = metadata.paymentMode || "test";
-
 
       const basketId = metadata.basketId
       const basket = await BasketShopping.findById(basketId)
@@ -291,7 +289,6 @@ exports.webhookHandlerShoppingService = async (event) => {
       const { name, email } = charge.billing_details;
 
       let user = await User.findOne({ "user.email": email });
-
       if (!user) {
         const regularUserData = new RegularUserData({});
         await regularUserData.save();
@@ -351,9 +348,7 @@ exports.webhookHandlerShoppingService = async (event) => {
             }
             product.variants[index].quantity -= item.quantity
             product.variants[index].soldQuantity += item.quantity
-          } else {
-            console.error(`❌ ไม่พบ product: ${productId} หรือ sku: ${sku}`)
-          }
+          } 
         }
         await product.save()
       }
