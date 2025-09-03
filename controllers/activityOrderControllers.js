@@ -19,6 +19,7 @@ const redis = require("../modules/database/redis");
 const { sendSetPasswordEmail } = require("../modules/email/email");
 const sendEmail = require("../modules/email/sendVerifyEmail");
 const sendOrderBookedEmail = require("../modules/email/sendOrderBookedEmail");
+const sendOrderShoppingBillEmail = require("../modules/email/sendOrderShoppingBillEmail")
 const {
   webhookHandlerQueue,
   webhookHandlerQueueEvent,
@@ -350,7 +351,7 @@ exports.webhookHandlerShoppingService = async (event) => {
             product.variants[index].soldQuantity += item.quantity
           } 
         }
-        await product.save()
+        // await product.save()
       }
 
       try {
@@ -384,7 +385,8 @@ exports.webhookHandlerShoppingService = async (event) => {
         // clear items in basket
         basket.items = []
         basket.totalPrice = 0
-        await basket.save()
+        // await basket.save()
+        await sendOrderShoppingBillEmail(orderShopping,user)
       }
       catch (error) {
         console.error("❌ Error saving order:", error.message);
