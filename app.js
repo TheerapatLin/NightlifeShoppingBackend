@@ -125,7 +125,7 @@ io.on("connection", (socket) => {
   socket.on("authenticate", async (data) => {
     try {
       const { token, userId } = data;
-      
+
       if (!token || !userId) {
         socket.emit("auth_error", { message: "Token and userId required" });
         return;
@@ -133,10 +133,10 @@ io.on("connection", (socket) => {
 
       // TODO: Verify JWT token here
       // const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      
+
       socket.userId = userId;
       socket.authenticated = true;
-      
+
       // เก็บข้อมูล user online
       onlineUsers.set(userId, {
         socketId: socket.id,
@@ -145,9 +145,9 @@ io.on("connection", (socket) => {
         status: "online"
       });
 
-      socket.emit("authenticated", { 
+      socket.emit("authenticated", {
         message: "Authentication successful",
-        userId 
+        userId
       });
 
       // แจ้งเพื่อนว่า user online
@@ -200,9 +200,9 @@ io.on("connection", (socket) => {
         timestamp: new Date()
       });
 
-      socket.emit("joined_chat", { 
+      socket.emit("joined_chat", {
         chatRoomId,
-        message: "Successfully joined chat room" 
+        message: "Successfully joined chat room"
       });
 
     } catch (error) {
@@ -215,9 +215,9 @@ io.on("connection", (socket) => {
   socket.on("leave_chat", (data) => {
     try {
       const { chatRoomId } = data;
-      
+
       socket.leave(chatRoomId);
-      
+
       // แจ้งสมาชิกในห้องว่ามี user ออกไป
       socket.to(chatRoomId).emit("user_left_chat", {
         userId: socket.userId,
@@ -259,7 +259,7 @@ io.on("connection", (socket) => {
 
       // ดึงข้อมูลห้องแชท
       const chatRoom = await ChatRoom.findById(chatRoomId);
-      
+
       // ส่งข้อความไปยังสมาชิกในห้อง
       io.to(chatRoomId).emit("new_message", {
         message,
@@ -272,11 +272,11 @@ io.on("connection", (socket) => {
         chatRoom.participants.forEach(participant => {
           if (participant.userId.toString() !== socket.userId && participant.isActive) {
             const participantUnreadCount = chatRoom.getUnreadCount(participant.userId);
-            
+
             // ส่งไปยัง specific user
             const participantSocket = Array.from(io.sockets.sockets.values())
               .find(s => s.userId === participant.userId.toString());
-            
+
             if (participantSocket) {
               participantSocket.emit("unread_count_updated", {
                 chatRoomId,
@@ -305,7 +305,7 @@ io.on("connection", (socket) => {
   socket.on("typing_start", (data) => {
     try {
       const { chatRoomId } = data;
-      
+
       socket.to(chatRoomId).emit("user_typing", {
         userId: socket.userId,
         chatRoomId,
@@ -321,7 +321,7 @@ io.on("connection", (socket) => {
   socket.on("typing_stop", (data) => {
     try {
       const { chatRoomId } = data;
-      
+
       socket.to(chatRoomId).emit("user_stop_typing", {
         userId: socket.userId,
         chatRoomId,
@@ -454,7 +454,7 @@ io.on("connection", (socket) => {
   socket.on("update_status", (data) => {
     try {
       const { status } = data; // "online", "away", "busy", "invisible"
-      
+
       if (onlineUsers.has(socket.userId)) {
         const userInfo = onlineUsers.get(socket.userId);
         userInfo.status = status;
@@ -496,7 +496,7 @@ io.on("connection", (socket) => {
           // แจ้งผู้ส่งว่าข้อความถูกส่งถึงแล้ว
           const senderSocket = Array.from(io.sockets.sockets.values())
             .find(s => s.userId === message.sender.toString());
-          
+
           if (senderSocket) {
             senderSocket.emit("message_delivered", {
               messageId,
@@ -516,7 +516,7 @@ io.on("connection", (socket) => {
   socket.on("get_total_unread", async () => {
     try {
       const { ChatRoom } = require("./schemas/v1/chat.schema");
-      
+
       const chatRooms = await ChatRoom.find({
         "participants.userId": socket.userId,
         "participants.isActive": true,
@@ -529,7 +529,7 @@ io.on("connection", (socket) => {
       chatRooms.forEach(room => {
         const unreadCount = room.getUnreadCount(socket.userId);
         totalUnread += unreadCount;
-        
+
         if (unreadCount > 0) {
           roomUnreadCounts.push({
             chatRoomId: room._id,
@@ -563,11 +563,11 @@ io.on("connection", (socket) => {
   // Disconnect
   socket.on("disconnect", () => {
     console.log(`🔌 User disconnected: ${socket.id}`);
-    
+
     if (socket.userId) {
       // ลบจากรายชื่อ online users
       onlineUsers.delete(socket.userId);
-      
+
       // แจ้งเพื่อนว่า user offline
       socket.broadcast.emit("user_offline", {
         userId: socket.userId,
@@ -698,7 +698,7 @@ app.use("/api/v1/activity", v1ActivityRouter);
 
 const shoppingRoutes = require("./routes/v1/shoppingRoutes")
 const v1ShoppingRoutes = shoppingRoutes(io)
-app.use("/api/v1/shopping",v1ShoppingRoutes)
+app.use("/api/v1/shopping", v1ShoppingRoutes)
 
 //? Chat Endpoints
 const v1ChatRouter = require("./routes/v1/chatRoutes");

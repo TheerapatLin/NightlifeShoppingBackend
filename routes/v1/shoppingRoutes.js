@@ -17,7 +17,9 @@ const {
     deleteProduct,
     addVariantsProduct,
     removeVariantInProduct,
-    editVariantProduct
+    editVariantProduct,
+    addImageIntoProduct,
+    addImagesIntoVariant
 } = require("../../controllers/shoppingProductController")
 
 // Basket
@@ -56,7 +58,7 @@ const {
     authRoles,
 } = require("../../middlewares/auth");
 
-module.exports = function (io) {
+module.exports = function () {
     const router = express.Router();
 
     // product API
@@ -64,8 +66,7 @@ module.exports = function (io) {
         [verifyAccessTokenWeb,
             authRoles(["admin", "superadmin"])
         ],
-        upload.array("image", 5), (req, res) =>
-        createProductShopping(req, res)
+        createProductShopping
     )
     router.get("/product", getAllProductShopping)
     router.get("/product/:productId", getProductById)
@@ -100,6 +101,20 @@ module.exports = function (io) {
             authRoles(["admin", "superadmin"])
         ],
         editVariantProduct
+    )
+    router.patch("/product/add-image/:productId",
+        [verifyAccessTokenWeb,
+            authRoles(["admin", "superadmin"])
+        ],
+        upload.array("image", 1), (req, res) =>
+        addImageIntoProduct(req,res)
+    )
+    router.patch("/product/variant/add-image/:productId",
+        [verifyAccessTokenWeb,
+            authRoles(["admin", "superadmin"])
+        ],
+        upload.array("image", 3), (req, res) =>
+            addImagesIntoVariant(req,res)
     )
 
 

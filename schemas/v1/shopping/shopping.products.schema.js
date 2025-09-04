@@ -16,7 +16,7 @@ const VariantSchema = new mongoose.Schema({
 
     soldQuantity: { type: Number, default: 0 },
 
-    imageUrls: [{ type: String }]
+    images: [{ order: Number, fileName: String }], // จำกัดที่ 3 รูป
 });
 
 const ProductShoppingSchema = new mongoose.Schema({
@@ -36,7 +36,8 @@ const ProductShoppingSchema = new mongoose.Schema({
         th: { type: String, required: true }
     },
 
-    imageUrls: [{ type: String, required: false }],
+    // รูปหลัก
+    image: [{ order: Number, fileName: String }],
 
     originalPrice: { type: Number, required: true },
 
@@ -50,12 +51,6 @@ const ProductShoppingSchema = new mongoose.Schema({
     // soldQuantity ให้ frontend คำนวณจาก Variants
 
     isLimited: { type: Boolean, default: false },
-
-    startDate: { type: Date, required: true, default: Date.now },
-
-    endDate: { type: Date },
-
-    hasEndDate: { type: Boolean, default: false },
 
     categoryId:
     {

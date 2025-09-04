@@ -1,7 +1,10 @@
+// controllers/shoppingProductController.js
 const ProductShopping = require("../schemas/v1/shopping/shopping.products.schema")
 const CategoryShopping = require('../schemas/v1/shopping/shopping.categories.schema')
 const User = require("../schemas/v1/user.schema");
+
 const mongoose = require("mongoose");
+const { OSSStorage, deleteFolder } = require("../modules/storage/oss");
 
 exports.createProductShopping = async (req, res) => {
     try {
@@ -32,7 +35,7 @@ exports.createProductShopping = async (req, res) => {
         if (!user) {
             return res
                 .status(404)
-                .send({ error: "ไม่พบข้อมูลผู้สร้างกิจกรรม (Creator)" });
+                .send({ error: "ไม่พบข้อมูล User" });
         }
 
         const creatorName = user.user.name
@@ -80,11 +83,11 @@ exports.createProductShopping = async (req, res) => {
             status: status
         })
 
-        await newProduct.save()
+        const savedProduct = await newProduct.save()
 
         res.status(200).send({
             message: `Create new product successful.`,
-            newProduct: newProduct
+            newProduct: savedProduct
         })
     }
     catch (error) {
@@ -480,6 +483,159 @@ exports.editVariantProduct = async (req, res) => {
             message: `Variant Product: ${productId}, sku:${sku}  saved successfully`,
             product: product
         });
+    }
+    catch (error) {
+        res.status(500).send({ error: error.message });
+    }
+}
+
+exports.addImageIntoProduct = async (req, res) => {
+    try {
+        const productId = req.params.productId
+        const userId = req.body.userId
+
+        if (!userId) {
+            return res.status(400).send({ error: "ต้องระบุ userId" });
+        }
+
+        const user = await User.findById(userId)
+        if (!user) {
+            return res
+                .status(404)
+                .send({ error: "ไม่พบข้อมูล User" });
+        }
+
+        if (!productId) {
+            return res.status(400).send({ error: "ต้องระบุ productId" });
+        }
+
+        const product = await ProductShopping.findById(productId)
+
+        if (!product) {
+            return res
+                .status(404)
+                .send({ error: "ไม่พบข้อมูล Product" });
+        }
+
+        if (product.creator.id.toString() !== userId) {
+            return res
+                .status(403)
+                .send({ error: "You can only edit your own product." });
+        }
+
+        // อัปโหลดรูปภาพ
+        let images = [];
+        if (req.files && req.files.length) {
+            const imageOrder = req.body.imageOrder
+                ? JSON.parse(req.body.imageOrder)
+                : {};
+            const uploadPromises = req.files.map(async (file, index) => {
+                const order = imageOrder[file.originalname] || index;
+                const uniqueTimestamp = Date.now();
+                return OSSStorage.put(
+                    `user/${userId}/shopping/${product._id}/product-${order}-${uniqueTimestamp}.jpg`,
+                    Buffer.from(file.buffer)
+                ).then((image) => ({
+                    order,
+                    fileName: image.url,
+                }));
+            });
+
+            try {
+                images = await Promise.all(uploadPromises);
+            } catch (uploadError) {
+                return res
+                    .status(500)
+                    .send({ error: `เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ: ${uploadError}` });
+            }
+        }
+
+        if (images.length > 0) {
+            product.image = images;
+            await product.save();
+        }
+
+        res.status(200).send({
+            message: `Add image into product:${product.title.en} successful.`,
+            product: product
+        })
+
+    }
+    catch (error) {
+        res.status(500).send({ error: error.message });
+    }
+}
+
+exports.addImagesIntoVariant = async (req, res) => {
+    try {
+        const productId = req.params.productId
+        const userId = req.body.userId
+        const sku = req.body.sku
+
+        if (!userId) {
+            return res.status(400).send({ error: "ต้องระบุ userId" });
+        }
+        const user = await User.findById(userId)
+        if (!user) {
+            return res
+                .status(404)
+                .send({ error: "ไม่พบข้อมูล User" });
+        }
+
+        if (!productId) {
+            return res.status(400).send({ error: "ต้องระบุ productId" });
+        }
+        const product = await ProductShopping.findById(productId)
+        if (!product) {
+            return res
+                .status(404)
+                .send({ error: "ไม่พบข้อมูล Product" });
+        }
+
+        if (product.creator.id.toString() !== userId) {
+            return res
+                .status(403)
+                .send({ error: "You can only edit your own product." });
+        }
+
+        for (let index = 0; index < product.variants.length; index++) {
+            if (sku === product.variants[index].sku) {
+                // อัปโหลดรูปภาพ
+                let images = [];
+                if (req.files && req.files.length) {
+                    const imageOrder = req.body.imageOrder
+                        ? JSON.parse(req.body.imageOrder)
+                        : {};
+                    const uploadPromises = req.files.map(async (file, index) => {
+                        const order = imageOrder[file.originalname] || index;
+                        const uniqueTimestamp = Date.now();
+                        return OSSStorage.put(
+                            `user/${userId}/shopping/${product._id}/product-${order}-variant.sku-${sku}-${uniqueTimestamp}.jpg`,
+                            Buffer.from(file.buffer)
+                        ).then((image) => ({
+                            order,
+                            fileName: image.url,
+                        }));
+                    });
+
+                    try {
+                        images = await Promise.all(uploadPromises);
+                    } catch (uploadError) {
+                        return res
+                            .status(500)
+                            .send({ error: `เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ: ${uploadError}` });
+                    }
+                }
+                if (images.length > 0) {
+                    product.variants[index].images = images;
+                    await product.save();
+                }
+            }
+        }
+        res.status(200).send({
+            message: `Add image into product: ${product.title.en} sku: ${sku} successful.`,
+            product: product
+        })
     }
     catch (error) {
         res.status(500).send({ error: error.message });
