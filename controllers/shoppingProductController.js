@@ -610,7 +610,6 @@ exports.addImagesIntoVariant = async (req, res) => {
                         const order = imageOrder[file.originalname] || index;
                         const uniqueTimestamp = Date.now();
                         return OSSStorage.put(
-                            `user/${userId}/shopping/${product._id}/product-${order}-variant.sku-${sku}-${uniqueTimestamp}.jpg`,
                             Buffer.from(file.buffer)
                         ).then((image) => ({
                             order,

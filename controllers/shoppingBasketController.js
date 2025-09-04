@@ -140,7 +140,7 @@ exports.clearBasketAllItems = async (req, res) => {
         existingBasket.totalPrice = 0
         await existingBasket.save()
 
-        res.status(200).json({ message: "Basket cleared successfully" });
+        res.status(200).json({ message: "✅ Basket cleared successfully" });
     }
     catch (error) {
         res.status(500).send({ error: error.message });
