@@ -1004,7 +1004,7 @@ const getAllAccounts = async (req, res) => {
     const usersWithLevels = await Promise.all(
       users.map(async (userDoc) => {
         const userObj = userDoc.toObject();
-        
+
         try {
           // ใช้ virtual field currentLevel
           const currentLevel = await userDoc.currentLevel;
@@ -1018,7 +1018,7 @@ const getAllAccounts = async (req, res) => {
             subscriptionId: null
           };
         }
-        
+
         return userObj;
       })
     );
@@ -1622,6 +1622,77 @@ const getAffiliateDiscount = async (req, res) => {
   }
 };
 
+const getAddressByUserId = async (req, res) => {
+  const userId = req.params.userId
+  try {
+    if (!userId) {
+      return res.status(400).json({ message: "กรุณาระบุ userId" });
+    }
+
+    const user = await User.findById(userId)
+    if (!user) {
+      return res.status(404).json({ message: "ไม่พบ user ดังกล่าว" });
+    }
+
+    if (!user.userData) {
+      return res.status(404).json({ message: "ไม่พบ userData ของ user นี้" });
+    }
+
+    const userData = await RegularUserData.findById(user.userData)
+    if (!userData) {
+      return res.status(404).json({ message: "ไม่พบ userData ของ user นี้" });
+    }
+
+    return res.status(200).json({
+      message: "FOUND USER!!",
+      Address: userData.address
+    });
+  }
+  catch (error) {
+    console.error("Error fetching address by userId:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+}
+
+const addAddressByUserId = async (req, res) => {
+  const userId = req.params.userId
+  const newAddress = req.body.newAddress
+  try {
+    if (!userId) {
+      res.status(400).json({ message: "กรุณาระบุ userId" });
+    }
+
+    const user = await User.findById(userId)
+    if (!user) {
+      res.status(404).json({ message: "ไม่พบ user นี้" });
+    }
+    if (!user.userData) {
+      return res.status(404).json({ message: "ไม่พบ userData ของ user นี้" });
+    }
+
+    const userData = await RegularUserData.findById(user.userData)
+    if (!userData) {
+      return res.status(404).json({ message: "ไม่พบ userData ของ user นี้" });
+    }
+
+    userData.address.push({
+      address: newAddress[0],  // ห่อไว้ใน field address
+      addressStatus: "default",
+      addressName: "undefined"
+    });
+    const saveUserData = await userData.save();
+
+    return res.status(201).json({
+      message: "Add address complete.",
+      saveUserData: saveUserData
+    });
+  }
+  catch (error) {
+    console.error("Error add address by userId:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+}
+
 module.exports = {
   changePassword,
   resetPassword,
@@ -1651,4 +1722,6 @@ module.exports = {
   getAffiliateBankInfo,
   getAffiliateDiscount,
   updateUserRoleOrAffiliateCode,
+  getAddressByUserId,
+  addAddressByUserId
 };

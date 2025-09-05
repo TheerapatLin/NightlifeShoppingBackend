@@ -108,14 +108,14 @@ module.exports = function () {
             authRoles(["admin", "superadmin"])
         ],
         upload.array("image", 1), (req, res) =>
-        addImageIntoProduct(req,res)
+        addImageIntoProduct(req, res)
     )
     router.patch("/product/variant/add-image/:productId",
         [verifyAccessTokenWeb,
             authRoles(["admin", "superadmin"])
         ],
         upload.array("image", 3), (req, res) =>
-            addImagesIntoVariant(req,res)
+        addImagesIntoVariant(req, res)
     )
 
 
@@ -184,6 +184,8 @@ module.exports = function () {
 
     // PaymentIntent API
     router.post("/create-payment-intent", createShoppingPaymentIntent)
+
+    // order API
     router.get("/order/:userId",
         [verifyAccessTokenWeb,
             authRoles(["user", "admin", "superadmin"])

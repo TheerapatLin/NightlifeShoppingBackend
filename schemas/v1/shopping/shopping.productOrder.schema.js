@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const addressSchema = require("../address.schema");
 
 const OrderItemShoppingSchema = new mongoose.Schema(
   {
@@ -74,11 +75,25 @@ const productShoppingOrderSchema = new mongoose.Schema(
       default: {},
     },
 
+    // ที่อยู่จัดส่ง
+    ShippingAddress:
+    {
+      address: { type: addressSchema },
+      addressStatus: {
+        type: String,
+        default: "default"
+      },
+      addressName: {
+        type: String,
+        default: "undefined"
+      },
+    },
+
     // บันทึกหรือหมายเหตุจากแอดมิน (เก็บเป็น array ของ object)
     adminNote: [
       {
         message: { type: String, required: true },
-        _id: false, 
+        _id: false,
       },
     ],
   },

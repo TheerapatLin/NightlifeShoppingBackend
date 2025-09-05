@@ -288,6 +288,8 @@ exports.webhookHandlerShoppingService = async (event) => {
         };
       }
 
+      const address = metadata.shippingAddress
+
       const charge = await stripe.charges.retrieve(paymentIntent.latest_charge);
       const { name, email } = charge.billing_details;
 
@@ -381,6 +383,7 @@ exports.webhookHandlerShoppingService = async (event) => {
               brand: charge.payment_method_details?.card?.brand,
               last4: charge.payment_method_details?.card?.last4,
             },
+            ShippingAddress: JSON.parse(address),
             $push: {
               adminNote: [...adminNote]
             }
@@ -402,7 +405,7 @@ exports.webhookHandlerShoppingService = async (event) => {
           },
           jobOptions
         );
-        // await sendOrderShoppingBillEmail(orderShopping, user)
+        await sendOrderShoppingBillEmail(orderShopping, user)
       }
       catch (error) {
         console.error("❌ Error saving order:", error.message);
@@ -471,7 +474,7 @@ exports.webhookHandler = async (req, res) => {
       }
     } else if (metaData.basketId) {
 
-      
+
       // สร้าง job และนำ job เข้าสู่ queue
       const job = await webhookHandlerShoppingQueue.add(
         `user-${emailUser || "unknown"}-ts-${Date.now()}`,
@@ -482,7 +485,6 @@ exports.webhookHandler = async (req, res) => {
 
       // รอผลลัพธ์จากการประมวลผลใน worker
       const response = await job.waitUntilFinished(webhookHandlerShoppingQueueEvent);
-      console.log(`wwwwwwwwwwwwwwwwwwwwwwww`)
       if (!response) {
         console.log("⚠️ No response returned from webhook worker.");
         return res.status(200).json({ message: "No response, event skipped" });
@@ -495,7 +497,6 @@ exports.webhookHandler = async (req, res) => {
         case "404":
           return res.status(404).json({ message: response.message });
       }
-      // await exports.webhookHandlerShoppingService(event)
     }
 
     res.json({ received: true });

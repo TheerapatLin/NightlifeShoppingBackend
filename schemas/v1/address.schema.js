@@ -17,10 +17,11 @@ const addressSchema = new mongoose.Schema({
     match: /^\d{5}$/, // รูปแบบรหัสไปรษณีย์ (5 หลัก)
   },
   country: {
-    type: String, // ชื่อประเทศ
+    type: String,
+    default: "Thailand" // ชื่อประเทศ
   },
   description: {
-    type: String, // ชื่อประเทศ
+    type: String,
   },
 });
 

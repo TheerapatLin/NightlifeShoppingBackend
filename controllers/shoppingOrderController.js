@@ -10,15 +10,38 @@ const ProductShoppingOrder = require("../schemas/v1/shopping/shopping.productOrd
 const User = require("../schemas/v1/user.schema");
 const ProductShopping = require("../schemas/v1/shopping/shopping.products.schema")
 const BasketShopping = require("../schemas/v1/shopping/shopping.baskets.schema")
+const RegularUserData = require("../schemas/v1/userData/regularUserData.schema")
 
 exports.createShoppingPaymentIntent = async (req, res) => {
     const stripe = getStripeInstance();
-    const { userId } = req.body;
+    const { userId, newAddress } = req.body;
+
 
 
     try {
         if (!userId) {
             return res.status(400).json({ error: "ต้องระบุ userId" });
+        }
+
+        // ตรวจสอบและเตรียมข้อมูลที่อยู่
+        let shippingAddress = null;
+
+        if (!newAddress) {
+            // ดึงที่อยู่จาก userData
+            const user = await User.findById(userId).populate('userData');
+            shippingAddress = {
+                address: user.userData.address[0].address,
+                addressStatus: 'default',
+                addressName: 'new address'
+            };
+            console.log(`shippingAddress => ${shippingAddress}`)
+        } else if (newAddress) {
+            // ใช้ที่อยู่ใหม่
+            shippingAddress = {
+                address: newAddress,
+                addressStatus: 'default',
+                addressName: 'new address'
+            };
         }
 
         const basket = await BasketShopping.findOne({ userId });
@@ -41,16 +64,16 @@ exports.createShoppingPaymentIntent = async (req, res) => {
             metadata: {
                 basketId,
                 userId,
+                shippingAddress: JSON.stringify(shippingAddress),
                 paymentMode: process.env.STRIPE_MODE === "live" ? "live" : "test",
             }
         });
-
-        console.log("🎯 paymentIntent:", paymentIntent);
 
         return res.send({
             clientSecret: paymentIntent.client_secret,
             basketId,
             userId,
+            shippingAddress: JSON.stringify(shippingAddress),
         });
     } catch (error) {
         console.error("❌ Error creating payment intent:", error);
@@ -156,37 +179,38 @@ exports.getShoppingOrderByCreaterId = async (req, res) => {
     }
 }
 
-exports.getOrderByIdUser = async (req,res) => {
-    try{
+exports.getOrderByIdUser = async (req, res) => {
+    try {
         const orderId = req.params.orderId
         const userId = req.params.userId || req.body.userId || req.query.userId
 
         if (!orderId) {
-            return res.status(400).json({message: `กรุณาระบุ orderId`})
+            return res.status(400).json({ message: `กรุณาระบุ orderId` })
         }
 
         const order = await ProductShoppingOrder.findById(orderId)
-        if(!order) {
-            return res.status(404).json({message: `ไม่พบ order`})
+        if (!order) {
+            return res.status(404).json({ message: `ไม่พบ order` })
         }
 
         if (!userId) {
-            return res.status(400).json({message: `กรุณาระบุ userId`})
+            return res.status(400).json({ message: `กรุณาระบุ userId` })
         }
 
         const user = await User.findById(userId)
         if (!user) {
-            return res.status(404).json({message: `ไม่พบ user`})
+            return res.status(404).json({ message: `ไม่พบ user` })
         }
 
         if (order.userId.toString() !== userId.toString()) {
-            return res.status(401).json({message: `คุณสามารถดู Order ได้แค่ของตัวเองเท่านั้น`})
+            return res.status(401).json({ message: `คุณสามารถดู Order ได้แค่ของตัวเองเท่านั้น` })
         }
 
         return res.status(200).json(order)
     }
-    catch(error) {
+    catch (error) {
         console.error("Error fetching order by Id:", error);
         res.status(500).json({ message: "Server error" });
     }
 }
+

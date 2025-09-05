@@ -43,6 +43,8 @@ const {
   getAffiliateBankInfo,
   getAffiliateDiscount,
   updateUserRoleOrAffiliateCode,
+  getAddressByUserId,
+  addAddressByUserId
 } = require("../../controllers/accountsControllers");
 
 const {
@@ -169,5 +171,9 @@ router.post(
   [deleteAccountsRateLimiter, verifyAccessToken],
   updateBusinessesByUserId
 );
+
+// address
+router.get("/address/:userId", getAddressByUserId)
+router.patch("/address/:userId", addAddressByUserId)
 
 module.exports = router;
