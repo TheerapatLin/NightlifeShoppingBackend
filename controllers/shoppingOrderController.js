@@ -61,6 +61,9 @@ exports.createShoppingPaymentIntent = async (req, res) => {
 exports.getShoppingOrderByUserId = async (req, res) => {
     try {
         const userId = req.params.userId;
+        if (!userId) {
+            return res.status(400).json({ error: "ต้องระบุ userId" });
+        }
 
         const shoppingOrders = await ProductShoppingOrder.find({ userId: userId })
 
@@ -149,6 +152,41 @@ exports.getShoppingOrderByCreaterId = async (req, res) => {
     }
     catch (error) {
         console.error("Error fetching orders by creatorId:", error);
+        res.status(500).json({ message: "Server error" });
+    }
+}
+
+exports.getOrderByIdUser = async (req,res) => {
+    try{
+        const orderId = req.params.orderId
+        const userId = req.params.userId || req.body.userId || req.query.userId
+
+        if (!orderId) {
+            return res.status(400).json({message: `กรุณาระบุ orderId`})
+        }
+
+        const order = await ProductShoppingOrder.findById(orderId)
+        if(!order) {
+            return res.status(404).json({message: `ไม่พบ order`})
+        }
+
+        if (!userId) {
+            return res.status(400).json({message: `กรุณาระบุ userId`})
+        }
+
+        const user = await User.findById(userId)
+        if (!user) {
+            return res.status(404).json({message: `ไม่พบ user`})
+        }
+
+        if (order.userId.toString() !== userId.toString()) {
+            return res.status(401).json({message: `คุณสามารถดู Order ได้แค่ของตัวเองเท่านั้น`})
+        }
+
+        return res.status(200).json(order)
+    }
+    catch(error) {
+        console.error("Error fetching order by Id:", error);
         res.status(500).json({ message: "Server error" });
     }
 }

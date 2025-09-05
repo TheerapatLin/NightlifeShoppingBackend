@@ -48,7 +48,8 @@ const {
     getShoppingOrderByUserId,
     getAllShoppingOrderForSuperadmin,
     updateShoppingOrderById,
-    getShoppingOrderByCreaterId
+    getShoppingOrderByCreaterId,
+    getOrderByIdUser
 } = require("../../controllers/shoppingOrderController")
 
 const {
@@ -205,6 +206,12 @@ module.exports = function () {
             authRoles(["admin", "superadmin"])
         ],
         getShoppingOrderByCreaterId
+    )
+    router.get("/order/id/:orderId",
+        [verifyAccessTokenWeb,
+            authRoles(["user", "admin", "superadmin"])
+        ],
+        getOrderByIdUser
     )
 
     module.exports = router;

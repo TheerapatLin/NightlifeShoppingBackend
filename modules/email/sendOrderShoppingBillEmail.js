@@ -192,9 +192,9 @@ module.exports = async function sendOrderShoppingBillEmail(
 
         // console.log(`order => ${order}`)
         // console.log(`itemData => ${JSON.stringify(itemData)}`)
-        console.log("✅ ส่งอีเมลแจ้งจองสำเร็จไปยัง:", recipients.join(", "));
+        console.log("✅ ส่งอีเมลแจ้งคำสั่งซื้อสำเร็จไปยัง:", recipients.join(", "));
     }
     catch (error) {
-        console.error("❌ ส่งอีเมลแจ้งจองล้มเหลว:", err.message);
+        console.error("❌ ส่งอีเมลแจ้งคำสั่งซื้อล้มเหลว:", err.message);
     }
 }
