@@ -261,7 +261,7 @@ exports.webhookHandlerService = async (event) => {
 
 exports.webhookHandlerShoppingService = async (event) => {
   const stripe = getStripeInstance();
-  console.log(`event type => ${event.type}`)
+
   switch (event.type) {
     case "payment_intent.succeeded": {
       const paymentIntent = event.data.object;
@@ -277,7 +277,7 @@ exports.webhookHandlerShoppingService = async (event) => {
 
       const metadata = paymentIntent.metadata || {};
       const paymentMode = metadata.paymentMode || "test";
-
+      
       const basketId = metadata.basketId
       const basket = await BasketShopping.findById(basketId)
       if (!basket) {
@@ -289,7 +289,6 @@ exports.webhookHandlerShoppingService = async (event) => {
       }
 
       const address = metadata.shippingAddress
-
       const charge = await stripe.charges.retrieve(paymentIntent.latest_charge);
       const { name, email } = charge.billing_details;
 
@@ -383,7 +382,17 @@ exports.webhookHandlerShoppingService = async (event) => {
               brand: charge.payment_method_details?.card?.brand,
               last4: charge.payment_method_details?.card?.last4,
             },
-            ShippingAddress: JSON.parse(address),
+            ShippingAddress: address ? JSON.parse(address) : {
+              address: {
+                address: "ไม่ระบุที่อยู่",
+                city: "ไม่ระบุเมือง",
+                province: "ไม่ระบุจังหวัด",
+                country: "Thailand",
+                description: "ที่อยู่เริ่มต้น"
+              },
+              addressStatus: 'default',
+              addressName: 'default address'
+            },
             $push: {
               adminNote: [...adminNote]
             }
@@ -481,7 +490,6 @@ exports.webhookHandler = async (req, res) => {
         event,
         jobOptions
       );
-      console.log(`xxxxxxxxxxxxxxxxxxxxxxxxxx`)
 
       // รอผลลัพธ์จากการประมวลผลใน worker
       const response = await job.waitUntilFinished(webhookHandlerShoppingQueueEvent);

@@ -10,13 +10,10 @@ const ProductShoppingOrder = require("../schemas/v1/shopping/shopping.productOrd
 const User = require("../schemas/v1/user.schema");
 const ProductShopping = require("../schemas/v1/shopping/shopping.products.schema")
 const BasketShopping = require("../schemas/v1/shopping/shopping.baskets.schema")
-const RegularUserData = require("../schemas/v1/userData/regularUserData.schema")
 
 exports.createShoppingPaymentIntent = async (req, res) => {
     const stripe = getStripeInstance();
     const { userId, newAddress } = req.body;
-
-
 
     try {
         if (!userId) {
@@ -26,22 +23,27 @@ exports.createShoppingPaymentIntent = async (req, res) => {
         // ตรวจสอบและเตรียมข้อมูลที่อยู่
         let shippingAddress = null;
 
-        if (!newAddress) {
+        if (!newAddress || newAddress.length === 0) {
             // ดึงที่อยู่จาก userData
             const user = await User.findById(userId).populate('userData');
-            shippingAddress = {
-                address: user.userData.address[0].address,
-                addressStatus: 'default',
-                addressName: 'new address'
-            };
-            console.log(`shippingAddress => ${shippingAddress}`)
-        } else if (newAddress) {
+            if (user && user.userData && user.userData.address && user.userData.address.length > 0) {
+                shippingAddress = {
+                    address: user.userData.address[0].address,
+                    addressStatus: 'default',
+                    addressName: 'ที่อยุ่เดิม'
+                };
+            } else {
+                return res.status(404).json({ error: "ไม่พบข้อมูลที่อยู่ กรุณากรอกข้อมูลที่อยู่" });
+            }
+            console.log(`shippingAddress from userData => ${JSON.stringify(shippingAddress)}`)
+        } else if (newAddress && newAddress.length > 0) {
             // ใช้ที่อยู่ใหม่
             shippingAddress = {
-                address: newAddress,
+                address: newAddress[0],
                 addressStatus: 'default',
-                addressName: 'new address'
+                addressName: 'ที่อยู่ใหม่'
             };
+            console.log(`shippingAddress from newAddress => ${JSON.stringify(shippingAddress)}`)
         }
 
         const basket = await BasketShopping.findOne({ userId });
