@@ -1,6 +1,5 @@
 // controllers/shoppingProductController.js
 const ProductShopping = require("../schemas/v1/shopping/shopping.products.schema")
-const CategoryShopping = require('../schemas/v1/shopping/shopping.categories.schema')
 const User = require("../schemas/v1/user.schema");
 
 const mongoose = require("mongoose");
@@ -13,13 +12,12 @@ exports.createProductShopping = async (req, res) => {
             title,
             description,
             originalPrice,
-            currency,
-            variants,
+            currency,            
             isLimited,
             hasEndDate,
-            categoryId,
             tags,
-            status
+            status,
+            variants
         } = req.body
 
         // ตรวจสอบว่ามี creatorId หรือไม่
@@ -48,21 +46,6 @@ exports.createProductShopping = async (req, res) => {
             return res.status(400).send({ error: "ในขณะนี้ยังไม่มี logic สำหรับการแปลงสกุลเงินนี้" });
         }
 
-        if (!categoryId) {
-            return res.status(400).send({ error: "ต้องระบุ categoryId" });
-        }
-
-        if (!mongoose.Types.ObjectId.isValid(categoryId)) {
-            return res.status(400).json({ message: "ไม่พบ categoryId" });
-        }
-
-        const category = await CategoryShopping.findById(categoryId)
-
-        if (!category) {
-            return res.status(404).json({ message: "ไม่พบ category" });
-        }
-
-
         const newProduct = new ProductShopping({
             creator: { id: creatorId, name: creatorName },
             title: {
@@ -74,18 +57,17 @@ exports.createProductShopping = async (req, res) => {
                 th: description.th
             },
             originalPrice: originalPrice,
-            currency: currency,
-            variants: variants,
+            currency: currency,         
             isLimited: isLimited,
             hasEndDate: hasEndDate,
-            categoryId: categoryId,
             tags: tags,
-            status: status
+            status: status,
+            variants: variants || []
         })
 
         const savedProduct = await newProduct.save()
 
-        res.status(200).send({
+        res.status(201).send({
             message: `Create new product successful.`,
             newProduct: savedProduct
         })
@@ -196,7 +178,7 @@ exports.getProductByCreatorId = async (req, res) => {
 exports.editProduct = async (req, res) => {
     try {
         const { productId } = req.params
-        const { creatorId, categoryId } = req.body
+        const { creatorId } = req.body
 
         const existingProduct = await ProductShopping.findById(productId);
 
@@ -204,17 +186,7 @@ exports.editProduct = async (req, res) => {
             return res.status(404).send({ error: "productId not found" });
         }
 
-        if (categoryId) {
-            if (!mongoose.Types.ObjectId.isValid(categoryId)) {
-                return res.status(400).json({ message: "ไม่พบ categoryId" });
-            }
 
-            const category = await CategoryShopping.findById(categoryId)
-
-            if (!category) {
-                return res.status(404).json({ message: "ไม่พบ category" });
-            }
-        }
 
         // ตรวจสอบว่ามี creatorId หรือไม่
         if (!creatorId) {
@@ -239,9 +211,7 @@ exports.editProduct = async (req, res) => {
                 "originalPrice",
                 "currency",
                 "variants",
-                "isLimited",
-                "hasEndDate",
-                "categoryId",
+
                 "tags",
                 "status"
             ];
@@ -252,6 +222,8 @@ exports.editProduct = async (req, res) => {
                             if (req.body[field] != null && req.body[field] != 'THB') {
                                 return res.status(400).send({ error: "ในขณะนี้ยังไม่มี logic สำหรับการแปลงสกุลเงินนี้" });
                             }
+                        case "tags":
+                            existingProduct.tags.push(...req.body[field])
                     }
                     existingProduct[field] = req.body[field];
                 }
@@ -609,8 +581,16 @@ exports.addImagesIntoVariant = async (req, res) => {
                     const uploadPromises = req.files.map(async (file, index) => {
                         const order = imageOrder[file.originalname] || index;
                         const uniqueTimestamp = Date.now();
+                        const fileName = `products/${productId}/variants/${sku}/${uniqueTimestamp}-${index}-${file.originalname}`;
                         return OSSStorage.put(
-                            Buffer.from(file.buffer)
+                            fileName,
+                            Buffer.from(file.buffer),
+                            {
+                                headers: {
+                                    'Content-Type': file.mimetype,
+                                    'Cache-Control': 'public, max-age=31536000',
+                                },
+                            }
                         ).then((image) => ({
                             order,
                             fileName: image.url,

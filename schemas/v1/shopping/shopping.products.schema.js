@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 const VariantSchema = new mongoose.Schema({
 
-    sku: { type: String, required: true, unique: true },
+    sku: { type: String, required: true },
 
     attributes: {
         size: { type: String },
@@ -32,8 +32,8 @@ const ProductShoppingSchema = new mongoose.Schema({
     },
 
     description: {
-        en: { type: String, required: true },
-        th: { type: String, required: true }
+        en: { type: String },
+        th: { type: String }
     },
 
     // รูปหลัก
@@ -52,16 +52,9 @@ const ProductShoppingSchema = new mongoose.Schema({
 
     isLimited: { type: Boolean, default: false },
 
-    categoryId:
-    {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'CategoryShopping',
-        required: true
-    },
-
     tags: [{ type: String }],
 
-    status: { type: String, enum: ['active', 'expired', 'sold_out'], default: 'active' },
+    status: { type: String, enum: ['active', 'inactive', 'sold_out','draft'], default: 'active' },
 
 }, { timestamps: true });
 

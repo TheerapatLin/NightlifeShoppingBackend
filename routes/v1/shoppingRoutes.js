@@ -32,16 +32,6 @@ const {
     removeProductByIdInBasket
 } = require("../../controllers/shoppingBasketController")
 
-// Category
-const {
-    createCategoryShopping,
-    getAllCategories,
-    getCategoryById,
-    getCategoriesByCreatorId,
-    editCategory,
-    deleteCategory
-} = require("../../controllers/shoppingCategoryController")
-
 // Order
 const {
     createShoppingPaymentIntent,
@@ -155,31 +145,6 @@ module.exports = function () {
             authRoles(["user", "admin", "superadmin"])
         ],
         removeProductByIdInBasket
-    )
-
-    // category API
-    router.post("/category",
-        upload.array("image", 1),
-        [verifyAccessTokenWeb,
-            authRoles(["admin", "superadmin"])
-        ],
-        (req, res) => createCategoryShopping(req, res)
-    )
-    router.get("/category", getAllCategories)
-    router.get("/category/:categoryId", getCategoryById)
-    router.get("/creator/category/:creatorId", getCategoriesByCreatorId)
-    router.patch("/category/:categoryId",
-        [verifyAccessTokenWeb,
-            authRoles(["admin", "superadmin"])
-        ],
-        upload.array("image", 3),
-        editCategory
-    )
-    router.delete("/category/:categoryId",
-        [verifyAccessTokenWeb,
-            authRoles(["admin", "superadmin"])
-        ],
-        deleteCategory
     )
 
     // PaymentIntent API

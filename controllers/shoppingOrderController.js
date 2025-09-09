@@ -35,7 +35,6 @@ exports.createShoppingPaymentIntent = async (req, res) => {
             } else {
                 return res.status(404).json({ error: "ไม่พบข้อมูลที่อยู่ กรุณากรอกข้อมูลที่อยู่" });
             }
-            console.log(`shippingAddress from userData => ${JSON.stringify(shippingAddress)}`)
         } else if (newAddress && newAddress.length > 0) {
             // ใช้ที่อยู่ใหม่
             shippingAddress = {
@@ -43,7 +42,6 @@ exports.createShoppingPaymentIntent = async (req, res) => {
                 addressStatus: 'default',
                 addressName: 'ที่อยู่ใหม่'
             };
-            console.log(`shippingAddress from newAddress => ${JSON.stringify(shippingAddress)}`)
         }
 
         const basket = await BasketShopping.findOne({ userId });
