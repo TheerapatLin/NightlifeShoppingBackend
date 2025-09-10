@@ -12,9 +12,7 @@ exports.createProductShopping = async (req, res) => {
             title,
             description,
             originalPrice,
-            currency,            
-            isLimited,
-            hasEndDate,
+            currency,
             tags,
             status,
             variants
@@ -57,9 +55,7 @@ exports.createProductShopping = async (req, res) => {
                 th: description.th
             },
             originalPrice: originalPrice,
-            currency: currency,         
-            isLimited: isLimited,
-            hasEndDate: hasEndDate,
+            currency: currency,
             tags: tags,
             status: status,
             variants: variants || []
@@ -186,8 +182,6 @@ exports.editProduct = async (req, res) => {
             return res.status(404).send({ error: "productId not found" });
         }
 
-
-
         // ตรวจสอบว่ามี creatorId หรือไม่
         if (!creatorId) {
             return res.status(400).send({ error: "ต้องระบุ creatorId" });
@@ -210,8 +204,6 @@ exports.editProduct = async (req, res) => {
                 "description",
                 "originalPrice",
                 "currency",
-                "variants",
-
                 "tags",
                 "status"
             ];
@@ -224,6 +216,7 @@ exports.editProduct = async (req, res) => {
                             }
                         case "tags":
                             existingProduct.tags.push(...req.body[field])
+                            continue
                     }
                     existingProduct[field] = req.body[field];
                 }
@@ -247,6 +240,46 @@ exports.editProduct = async (req, res) => {
     }
     catch (error) {
         return res.status(500).send({ error: error.message });
+    }
+}
+
+exports.editTagsProduct = async (req, res) => {
+    try {
+        const { productId } = req.params
+        const {
+            userId,
+            tags
+        } = req.body
+
+        if (!userId) {
+            return res.status(400).send({ error: "โปรดระบุ productId" });
+        }
+
+        if (!productId) {
+            return res.status(400).send({ error: "โปรดระบุ productId" });
+        }
+
+        const existingProduct = await ProductShopping.findById(productId);
+
+        if (!existingProduct) {
+            return res.status(404).send({ error: "productId not found" });
+        }
+
+        if (existingProduct.creator.id.toString() !== userId) {
+            return res
+                .status(403)
+                .send({ error: "You can only edit your own product." });
+        }
+
+        existingProduct.tags = tags
+        await existingProduct.save()
+        return res.status(200).send({ 
+            message: "Edit tag successful",
+            existingProduct: existingProduct
+        });
+    }
+    catch (error) {
+        return res.status(500).send({ error: error.message })
     }
 }
 
@@ -306,7 +339,7 @@ exports.addVariantsProduct = async (req, res) => {
         const newSkus = variants.map(v => v.sku);
         const newSkusSet = new Set(newSkus);
         if (newSkus.length !== newSkusSet.size) {
-            return res.status(400).json({ error: "sku ใน variants ที่จะเพิ่มใหม่ซ้ำกันเอง" });
+            return res.status(400).json({ error: "sku ใน variants ที่จะสร้างใหม่นั้นซ้ำกันเอง" });
         }
 
         // ตรวจสอบว่า sku ใน variants ที่จะเพิ่มใหม่ ซ้ำกับ sku ที่มีอยู่ใน product หรือไม่
