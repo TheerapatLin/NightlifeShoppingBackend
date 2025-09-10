@@ -383,7 +383,8 @@ exports.editVariantProduct = async (req, res) => {
             attributes,
             price,
             quantity,
-            soldQuantity
+            soldQuantity,
+            images
         } = req.body
 
         if (!productId) {
@@ -425,7 +426,13 @@ exports.editVariantProduct = async (req, res) => {
                     },
                     price: price ?? product.variants[i].price,
                     quantity: quantity ?? product.variants[i].quantity,
-                    soldQuantity: soldQuantity ?? product.variants[i].soldQuantity
+                    soldQuantity: soldQuantity ?? product.variants[i].soldQuantity,
+                    images: images
+                        ? [...product.variants[i].images, ...images.map((img, idx) => ({
+                            order: product.variants[i].images.length + idx,
+                            fileName: img.previewUrl
+                        }))]
+                        : product.variants[i].images
                 };
                 product.variants[i] = newVariant;
 
@@ -530,8 +537,7 @@ exports.addImageIntoProduct = async (req, res) => {
 exports.addImagesIntoVariant = async (req, res) => {
     try {
         const productId = req.params.productId
-        const userId = req.body.userId
-        const sku = req.body.sku
+        const { userId, sku, indexes } = req.body
 
         if (!userId) {
             return res.status(400).send({ error: "ต้องระบุ userId" });
@@ -558,6 +564,7 @@ exports.addImagesIntoVariant = async (req, res) => {
                 .status(403)
                 .send({ error: "You can only edit your own product." });
         }
+        console.log(`indexes => ${JSON.stringify(indexes, null, 2)}`)
 
         for (let index = 0; index < product.variants.length; index++) {
             if (sku === product.variants[index].sku) {
@@ -567,10 +574,11 @@ exports.addImagesIntoVariant = async (req, res) => {
                     const imageOrder = req.body.imageOrder
                         ? JSON.parse(req.body.imageOrder)
                         : {};
-                    const uploadPromises = req.files.map(async (file, index) => {
-                        const order = imageOrder[file.originalname] || index;
+                    const uploadPromises = req.files.map(async (file, fileIndex) => {
+                        const currentImagesLength = product.variants[index].images.length;
+                        const order = imageOrder[file.originalname] || (currentImagesLength + fileIndex);
                         const uniqueTimestamp = Date.now();
-                        const fileName = `products/${productId}/variants/${sku}/${uniqueTimestamp}-${index}-${file.originalname}`;
+                        const fileName = `products/${productId}/variants/${sku}/${uniqueTimestamp}-${fileIndex}-${file.originalname}`;
                         return OSSStorage.put(
                             fileName,
                             Buffer.from(file.buffer),
@@ -595,9 +603,23 @@ exports.addImagesIntoVariant = async (req, res) => {
                     }
                 }
                 if (images.length > 0) {
-                    product.variants[index].images = images;
-                    await product.save();
+                    product.variants[index].images.push(...images);
                 }
+                let newImages = [];
+                
+                if (indexes && indexes.length > 0) {
+                    for (let i = 0; i < product.variants[index].images.length; i++) {
+                        if (indexes.includes(i)) {
+                            continue;
+                        }
+                        newImages.push({
+                            ...product.variants[index].images[i].toObject(),
+                            order: newImages.length // อัปเดต order ใหม่
+                        });
+                    }
+                    product.variants[index].images = newImages;
+                }                
+                await product.save();
             }
         }
         res.status(200).send({
