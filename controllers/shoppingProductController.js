@@ -214,16 +214,12 @@ exports.editProduct = async (req, res) => {
                             if (req.body[field] != null && req.body[field] != 'THB') {
                                 return res.status(400).send({ error: "ในขณะนี้ยังไม่มี logic สำหรับการแปลงสกุลเงินนี้" });
                             }
-                        case "tags":
-                            existingProduct.tags.push(...req.body[field])
-                            continue
                     }
                     existingProduct[field] = req.body[field];
                 }
             }
         } catch (error) {
             console.error("Failed to update the product:", error);
-            // ส่ง response กลับไปยัง client ว่ามีข้อผิดพลาดเกิดขึ้น
             return res.status(500).send({
                 message: "Error updating the product (mayby type of datas mismatched)",
                 error: error.toString(),
@@ -240,46 +236,6 @@ exports.editProduct = async (req, res) => {
     }
     catch (error) {
         return res.status(500).send({ error: error.message });
-    }
-}
-
-exports.editTagsProduct = async (req, res) => {
-    try {
-        const { productId } = req.params
-        const {
-            userId,
-            tags
-        } = req.body
-
-        if (!userId) {
-            return res.status(400).send({ error: "โปรดระบุ productId" });
-        }
-
-        if (!productId) {
-            return res.status(400).send({ error: "โปรดระบุ productId" });
-        }
-
-        const existingProduct = await ProductShopping.findById(productId);
-
-        if (!existingProduct) {
-            return res.status(404).send({ error: "productId not found" });
-        }
-
-        if (existingProduct.creator.id.toString() !== userId) {
-            return res
-                .status(403)
-                .send({ error: "You can only edit your own product." });
-        }
-
-        existingProduct.tags = tags
-        await existingProduct.save()
-        return res.status(200).send({ 
-            message: "Edit tag successful",
-            existingProduct: existingProduct
-        });
-    }
-    catch (error) {
-        return res.status(500).send({ error: error.message })
     }
 }
 

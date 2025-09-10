@@ -20,7 +20,7 @@ const {
     editVariantProduct,
     addImageIntoProduct,
     addImagesIntoVariant,
-    editTagsProduct
+ 
 } = require("../../controllers/shoppingProductController")
 
 // Basket
@@ -107,12 +107,7 @@ module.exports = function () {
         upload.array("image", 6), (req, res) =>
         addImagesIntoVariant(req, res)
     )
-    router.patch("/product/edit-tag/:productId",
-        [verifyAccessTokenWeb,
-            authRoles(["admin", "superadmin"])
-        ],
-        editTagsProduct
-    )
+  
 
 
     // basket API
