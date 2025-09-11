@@ -27,7 +27,7 @@ exports.createBasketShopping = async (req, res) => {
         // ตรวจสอบว่าผู้ใช้มี basket อยู่แล้วหรือไม่ (1 user มี 1 basket)
         const existingBasket = await BasketShopping.findOne({ userId: userId });
         if (existingBasket) {
-            return res.status(400).send({ error: "ผู้ใช้นี้มี basket อยู่แล้ว" });
+            return res.status(200).send({ warning: "ผู้ใช้นี้มี basket อยู่แล้ว" });
         }
 
         let itemData = [];

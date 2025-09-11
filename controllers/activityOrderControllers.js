@@ -14,6 +14,7 @@ const ActivitySlot = require("../schemas/v1/activitySlot.schema");
 const BasketShopping = require("../schemas/v1/shopping/shopping.baskets.schema")
 const ProductShopping = require("../schemas/v1/shopping/shopping.products.schema")
 const ProductShoppingOrder = require("../schemas/v1/shopping/shopping.productOrder.schema")
+const CreatorShoppingOrder = require("../schemas/v1/shopping/shopping.creatorOrder.schema")
 const crypto = require("crypto");
 const redis = require("../modules/database/redis");
 const { sendSetPasswordEmail } = require("../modules/email/email");
@@ -277,7 +278,9 @@ exports.webhookHandlerShoppingService = async (event) => {
 
       const metadata = paymentIntent.metadata || {};
       const paymentMode = metadata.paymentMode || "test";
-      
+
+      console.log(`metadata => ${JSON.stringify(metadata, null, 2)}`)
+
       const basketId = metadata.basketId
       const basket = await BasketShopping.findById(basketId)
       if (!basket) {
@@ -323,8 +326,13 @@ exports.webhookHandlerShoppingService = async (event) => {
       const items = basket.items
       let adminNote = []
 
+
       for (const item of items) {
         const productId = item.productId;
+        const creatorId = item.creator.id
+        const sku = item.variant.sku;
+        let adminNoteCeartor = []
+        let varaintOrder = []
 
         if (!mongoose.Types.ObjectId.isValid(productId)) {
           return {
@@ -342,8 +350,6 @@ exports.webhookHandlerShoppingService = async (event) => {
           };
         }
 
-        const sku = item.variant.sku;
-
         for (let index = 0; index < product.variants.length; index++) {
           if (product._id.toString() === String(productId).trim() && product.variants[index].sku === sku) {
             if (product.variants[index].quantity < item.quantity) {
@@ -352,15 +358,78 @@ exports.webhookHandlerShoppingService = async (event) => {
                 message: `จ่ายเงินแล้วแต่สินค้า ${product.variants[index].sku} มีไม่เพียงพอ`,
                 createdAt: Date.now()
               });
+              adminNoteCeartor.push({
+                message: `จ่ายเงินแล้วแต่สินค้า ${product.variants[index].sku} มีไม่เพียงพอ`,
+                createdAt: Date.now()
+              });
+              product.variants[index].soldQuantity += item.quantity - product.variants[index].quantity
               product.variants[index].quantity = 0
-              product.variants[index].soldQuantity += item.quantity
+              varaintOrder = [
+                {
+                  sku: sku,
+                  quantity: item.quantity,
+                  originalPrice: item.originalPrice,
+                  totalPrice: item.totalPrice,
+                }
+              ]
               continue
             }
             product.variants[index].quantity -= item.quantity
             product.variants[index].soldQuantity += item.quantity
+            varaintOrder = [
+              {
+                sku: sku,
+                quantity: item.quantity,
+                originalPrice: item.originalPrice,
+                totalPrice: item.totalPrice,
+              }
+            ]
           }
         }
-        await product.save()
+        try {
+          await product.save()
+          const orderCreatorShopping = await CreatorShoppingOrder.findOneAndUpdate(
+            { paymentIntentId: paymentIntent.id },
+            {
+              paymentIntentId: paymentIntent.id,
+              buyerId: user._id,
+              creatorId: creatorId,
+              productId: productId,
+              status: "paid",
+              paymentMode: paymentMode,
+              paymentGateway: "stripe",
+              paidAt: new Date(),
+              paymentMetadata: {
+                chargeId: paymentIntent.latest_charge,
+                method: charge.payment_method_details?.type,
+                receiptUrl: charge.receipt_url,
+                brand: charge.payment_method_details?.card?.brand,
+                last4: charge.payment_method_details?.card?.last4,
+              },
+              ShippingAddress: address ? JSON.parse(address) : {
+                address: {
+                  address: "undifined",
+                  city: "undifined",
+                  province: "undifined",
+                  country: "undifined",
+                  description: "undifined"
+                },
+                addressStatus: 'default',
+                addressName: 'default address'
+              },
+              $push: {
+                variant: [...varaintOrder],
+                adminNote: [...adminNote]
+              }
+            },
+            { upsert: true, new: true, runValidators: true }
+          )
+          console.log(`✅ Creator Order saved successfully: ${orderCreatorShopping._id}`);
+        }
+        catch (error) {
+          console.error("❌ Error saving order:", error.message);
+        }
+
       }
 
       try {
@@ -384,11 +453,11 @@ exports.webhookHandlerShoppingService = async (event) => {
             },
             ShippingAddress: address ? JSON.parse(address) : {
               address: {
-                address: "ไม่ระบุที่อยู่",
-                city: "ไม่ระบุเมือง",
-                province: "ไม่ระบุจังหวัด",
-                country: "Thailand",
-                description: "ที่อยู่เริ่มต้น"
+                address: "undifined",
+                city: "undifined",
+                province: "undifined",
+                country: "undifined",
+                description: "undifined"
               },
               addressStatus: 'default',
               addressName: 'default address'
