@@ -185,7 +185,7 @@ exports.addProductsInBasket = async (req, res) => {
             }
             if (foundVariant.quantity < quantity) {
                 return res.status(400).json({
-                    error: `สินค้า ${product.title} sku: ${variant.sku} มีจำนวนไม่เพียงพอ`
+                    error: `สินค้า ${product.title.en} [${variant.sku}] มีจำนวนไม่เพียงพอ`
                 });
             }
 

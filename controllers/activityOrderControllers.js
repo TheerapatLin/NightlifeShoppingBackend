@@ -279,8 +279,6 @@ exports.webhookHandlerShoppingService = async (event) => {
       const metadata = paymentIntent.metadata || {};
       const paymentMode = metadata.paymentMode || "test";
 
-      console.log(`metadata => ${JSON.stringify(metadata, null, 2)}`)
-
       const basketId = metadata.basketId
       const basket = await BasketShopping.findById(basketId)
       if (!basket) {
@@ -325,6 +323,7 @@ exports.webhookHandlerShoppingService = async (event) => {
 
       const items = basket.items
       let adminNote = []
+      const today = new Date().toLocaleString("th-TH", { timeZone: "Asia/Bangkok" });
 
 
       for (const item of items) {
@@ -355,11 +354,11 @@ exports.webhookHandlerShoppingService = async (event) => {
             if (product.variants[index].quantity < item.quantity) {
               console.error(`❌ จ่ายเงินแล้วแต่สินค้า ${product.variants[index].sku} มีไม่เพียงพอ`)
               adminNote.push({
-                message: `จ่ายเงินแล้วแต่สินค้า ${product.variants[index].sku} มีไม่เพียงพอ`,
+                message: `[❌ ${today}] จ่ายเงินแล้วแต่สินค้า ${product.variants[index].sku} มีไม่เพียงพอ`,
                 createdAt: Date.now()
               });
               adminNoteCeartor.push({
-                message: `จ่ายเงินแล้วแต่สินค้า ${product.variants[index].sku} มีไม่เพียงพอ`,
+                message: `❌ ${today}] จ่ายเงินแล้วแต่สินค้า ${product.variants[index].sku} มีไม่เพียงพอ`,
                 createdAt: Date.now()
               });
               product.variants[index].soldQuantity += item.quantity - product.variants[index].quantity
@@ -389,7 +388,10 @@ exports.webhookHandlerShoppingService = async (event) => {
         try {
           await product.save()
           const orderCreatorShopping = await CreatorShoppingOrder.findOneAndUpdate(
-            { paymentIntentId: paymentIntent.id },
+            {
+              paymentIntentId: paymentIntent.id,
+              creatorId: creatorId,
+            },
             {
               paymentIntentId: paymentIntent.id,
               buyerId: user._id,
@@ -419,7 +421,7 @@ exports.webhookHandlerShoppingService = async (event) => {
               },
               $push: {
                 variant: [...varaintOrder],
-                adminNote: [...adminNote]
+                adminNote: [...adminNoteCeartor]
               }
             },
             { upsert: true, new: true, runValidators: true }

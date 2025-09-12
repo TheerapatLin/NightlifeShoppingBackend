@@ -34,7 +34,7 @@ const CreatorOrderSchema = new mongoose.Schema(
 
         status: {
             type: String,
-            enum: ["paid", "pending", "failed", "refunded", "cancelled"],
+            enum: ["paid", "pending", "failed", "refunded", "cancelled", "delivered"],
             default: "pending",
         },
 

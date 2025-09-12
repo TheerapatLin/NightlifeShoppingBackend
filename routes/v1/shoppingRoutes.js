@@ -20,7 +20,7 @@ const {
     editVariantProduct,
     addImageIntoProduct,
     addImagesIntoVariant,
- 
+
 } = require("../../controllers/shoppingProductController")
 
 // Basket
@@ -40,7 +40,11 @@ const {
     getAllShoppingOrderForSuperadmin,
     updateShoppingOrderById,
     getShoppingOrderByCreaterId,
-    getOrderByIdUser
+    getOrderByIdUser,
+    getCreatorShoppingOrderByCreatorId,
+    getAllCreatorShoppingOrderSuperAdmin,
+    getCreatorShoppingOrderById,
+    editCreatorShoppingOrderById
 } = require("../../controllers/shoppingOrderController")
 
 const {
@@ -107,7 +111,7 @@ module.exports = function () {
         upload.array("image", 6), (req, res) =>
         addImagesIntoVariant(req, res)
     )
-  
+
 
 
     // basket API
@@ -160,7 +164,7 @@ module.exports = function () {
     )
     router.get("/order",
         [verifyAccessTokenWeb,
-            authRoles(["admin", "superadmin"])
+            authRoles(["superadmin"])
         ],
         getAllShoppingOrderForSuperadmin)
     router.patch("/order/update/:orderId",
@@ -180,6 +184,30 @@ module.exports = function () {
             authRoles(["user", "admin", "superadmin"])
         ],
         getOrderByIdUser
+    )
+    router.get("/creator-creatororder/:userId",
+        [verifyAccessTokenWeb,
+            authRoles(["admin", "superadmin"])
+        ],
+        getCreatorShoppingOrderByCreatorId
+    )
+    router.get("/all-creatororder",
+        [verifyAccessTokenWeb,
+            authRoles(["superadmin"])
+        ],
+        getAllCreatorShoppingOrderSuperAdmin
+    )
+    router.get("/one-creatororder/:creatorOrderId",
+        [verifyAccessTokenWeb,
+            authRoles(["admin", "superadmin"])
+        ],
+        getCreatorShoppingOrderById
+    )
+    router.patch("/update-creatororder/:creatorOrderId",
+        [verifyAccessTokenWeb,
+            authRoles(["admin", "superadmin"])
+        ],
+        editCreatorShoppingOrderById
     )
 
     module.exports = router;
