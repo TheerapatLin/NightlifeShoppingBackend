@@ -11,6 +11,7 @@ const User = require("../schemas/v1/user.schema");
 const ProductShopping = require("../schemas/v1/shopping/shopping.products.schema")
 const BasketShopping = require("../schemas/v1/shopping/shopping.baskets.schema")
 const CreatorShoppingOrder = require("../schemas/v1/shopping/shopping.creatorOrder.schema")
+const RegularUserData = require("../schemas/v1/userData/regularUserData.schema");
 
 exports.createShoppingPaymentIntent = async (req, res) => {
     const stripe = getStripeInstance();
@@ -216,18 +217,9 @@ exports.getOrderByIdUser = async (req, res) => {
 
 exports.getCreatorShoppingOrderByCreatorId = async (req, res) => {
     const userId = req.params.userId
-    const creatorId = req.body.creatorId
 
     if (!userId) {
         return res.status(400).json({ message: `กรุณาระบุ userId` })
-    }
-
-    if (!creatorId) {
-        return res.status(400).json({ message: `กรุณาระบุ creatorId` })
-    }
-
-    if (userId !== creatorId) {
-        return res.status(401).json({ message: `คุณสามารถดู Order ได้แค่ของตัวเองเท่านั้น` })
     }
 
     try {
@@ -236,7 +228,7 @@ exports.getCreatorShoppingOrderByCreatorId = async (req, res) => {
             return res.status(404).json({ message: `ไม่พบ user` })
         }
 
-        const creatorOrder = await CreatorShoppingOrder.find({ creatorId: creatorId })
+        const creatorOrder = await CreatorShoppingOrder.find({ creatorId: userId })
         if (!creatorOrder) {
             return res.status(404).json({ message: `ไม่พบ Order ของ Creator นี้` })
         }
@@ -275,7 +267,7 @@ exports.getCreatorShoppingOrderById = async (req, res) => {
     }
 }
 
-exports.editCreatorShoppingOrderById = async (req, res) => {
+exports.editAdminNoteCreatorShoppingOrderById = async (req, res) => {
     const creatorOrderId = req.params.creatorOrderId
     if (!creatorOrderId) {
         return res.status(400).json({ message: `กรุณาระบุ creatorOrderId` })
@@ -283,13 +275,11 @@ exports.editCreatorShoppingOrderById = async (req, res) => {
 
     const {
         adminNote,
-        status,
     } = req.body
 
     const updateFields = {};
 
     if (adminNote !== undefined) updateFields.adminNote = adminNote;
-    if (status !== undefined) updateFields.status = status;
 
     try {
         const creatorOrder = await CreatorShoppingOrder.findByIdAndUpdate(
@@ -307,8 +297,8 @@ exports.editCreatorShoppingOrderById = async (req, res) => {
         const order = await ProductShoppingOrder.findOneAndUpdate(
             { paymentIntentId: creatorOrder.paymentIntentId },
             {
-                $push: {
-                    adminNote: [...adminNote]
+                $set: {
+                    adminNote: adminNote || []
                 }
             },
             {
@@ -331,6 +321,60 @@ exports.editCreatorShoppingOrderById = async (req, res) => {
         res.status(500).json({ message: "Server error" });
     }
 
+}
+
+exports.editProductCreaterOrderById = async (req, res) => {
+    const creatorOrderId = req.params.creatorOrderId
+    if (!creatorOrderId) {
+        return res.status(400).json({ message: `กรุณาระบุ creatorOrderId` })
+    }
+
+    const {
+        adminNote,
+        status,
+        productId,
+        sku
+    } = req.body
+
+    try {
+        const creatorOrder = await CreatorShoppingOrder.findById(creatorOrderId)
+        if (!creatorOrder) {
+            return res.status(404).json({ message: `ไม่พบ CreatorOrder ID: ${creatorOrderId} นี้` })
+        }
+
+        for (let index = 0; index < creatorOrder.variant.length; index++) {
+            if (creatorOrder.variant[index].productId.toString() === productId && creatorOrder.variant[index].sku === sku) {
+                creatorOrder.variant[index].adminNote = adminNote || []
+                creatorOrder.variant[index].status = status || "preparing"
+                console.log(`creatorOrder.variant[index] => ${JSON.stringify(creatorOrder.variant[index], null, 2)}`)
+            }
+        }        
+
+        const order = await ProductShoppingOrder.findOne({ paymentIntentId: creatorOrder.paymentIntentId })
+        if (!order) {
+            return res.status(404).json({ message: `ไม่พบ Order` })
+        }
+
+        for (let index = 0; index < order.items.length; index++) {
+            if (order.items[index].productId.toString() === productId && order.items[index].variant.sku === sku) {
+                order.items[index].adminNote = adminNote || []
+                order.items[index].status = status || "preparing"
+            }
+        }
+
+        await creatorOrder.save()
+        await order.save()
+
+        return res.status(200).json({
+            message: "Updated CreatorShoppingOrder by Id successful.",
+            creatorOrder: creatorOrder,
+            order: order
+        });
+    }
+    catch (error) {
+        console.error("Error updating ProductCreaterOrder By Id:", error);
+        res.status(500).json({ message: "Server error" });
+    }
 }
 
 exports.getAllCreatorShoppingOrderSuperAdmin = async (req, res) => {

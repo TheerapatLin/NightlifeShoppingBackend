@@ -44,7 +44,8 @@ const {
     getCreatorShoppingOrderByCreatorId,
     getAllCreatorShoppingOrderSuperAdmin,
     getCreatorShoppingOrderById,
-    editCreatorShoppingOrderById
+    editAdminNoteCreatorShoppingOrderById,
+    editProductCreaterOrderById
 } = require("../../controllers/shoppingOrderController")
 
 const {
@@ -203,11 +204,17 @@ module.exports = function () {
         ],
         getCreatorShoppingOrderById
     )
-    router.patch("/update-creatororder/:creatorOrderId",
+    router.patch("/update-adminnote-creatororder/:creatorOrderId",
         [verifyAccessTokenWeb,
             authRoles(["admin", "superadmin"])
         ],
-        editCreatorShoppingOrderById
+        editAdminNoteCreatorShoppingOrderById
+    )
+    router.patch("/update-product-creatororder/:creatorOrderId",
+        [verifyAccessTokenWeb,
+            authRoles(["admin", "superadmin"])
+        ],
+        editProductCreaterOrderById
     )
 
     module.exports = router;

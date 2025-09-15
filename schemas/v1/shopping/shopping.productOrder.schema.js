@@ -24,6 +24,22 @@ const OrderItemShoppingSchema = new mongoose.Schema(
 
     totalPrice: { type: Number, required: true },
 
+    status: {
+      type: String,
+      enum: ["preparing", "packed", "pending", "picked", "transit", "hub", "delivering", "delivered", "failed", "cancelled", "returning"],
+      // [preparing => ร้านค้ากำลังจัดเตรียมสินค้า, packed => สินค้าถูกแพ็คเรียบร้อยแล้ว, pending => รอพนักงานขนส่งมารับสินค้า, picked => ขนส่งรับสินค้าเรียบร้อยแล้ว, 
+      // transit => สินค้ากำลังเดินทาง, hub => สินค้าอยู่ที่ศูนย์กระจายสินค้า, delivering => พนักงานกำลังนำส่งสินค้า, delivered => ส่งถึงปลายทางเรียบร้อย, 
+      // failed => ส่งไม่สำเร็จ เช่น ไม่พบผู้รับ, cancelled => สินค้าถูกส่งกลับต้นทาง, returning => สินค้ากำลังส่งกลับต้นทาง]
+      default: "preparing",
+    },
+
+    adminNote: [
+      {
+        message: { type: String, required: true },
+        _id: false,
+      },
+    ],
+
   });
 
 const productShoppingOrderSchema = new mongoose.Schema(

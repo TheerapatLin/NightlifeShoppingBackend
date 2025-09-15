@@ -330,7 +330,7 @@ exports.webhookHandlerShoppingService = async (event) => {
         const productId = item.productId;
         const creatorId = item.creator.id
         const sku = item.variant.sku;
-        let adminNoteCeartor = []
+
         let varaintOrder = []
 
         if (!mongoose.Types.ObjectId.isValid(productId)) {
@@ -352,35 +352,39 @@ exports.webhookHandlerShoppingService = async (event) => {
         for (let index = 0; index < product.variants.length; index++) {
           if (product._id.toString() === String(productId).trim() && product.variants[index].sku === sku) {
             if (product.variants[index].quantity < item.quantity) {
+              let adminNoteCeartor = []
               console.error(`❌ จ่ายเงินแล้วแต่สินค้า ${product.variants[index].sku} มีไม่เพียงพอ`)
               adminNote.push({
                 message: `[❌ ${today}] จ่ายเงินแล้วแต่สินค้า ${product.variants[index].sku} มีไม่เพียงพอ`,
-                createdAt: Date.now()
               });
               adminNoteCeartor.push({
                 message: `❌ ${today}] จ่ายเงินแล้วแต่สินค้า ${product.variants[index].sku} มีไม่เพียงพอ`,
-                createdAt: Date.now()
               });
               product.variants[index].soldQuantity += item.quantity - product.variants[index].quantity
-              product.variants[index].quantity = 0
               varaintOrder = [
                 {
+                  productId: productId,
                   sku: sku,
-                  quantity: item.quantity,
+                  quantity: item.quantity - product.variants[index].quantity,
                   originalPrice: item.originalPrice,
                   totalPrice: item.totalPrice,
+                  numCoin: item.totalPrice,
+                  adminNote: adminNoteCeartor,
                 }
               ]
+              product.variants[index].quantity = 0
               continue
             }
             product.variants[index].quantity -= item.quantity
             product.variants[index].soldQuantity += item.quantity
             varaintOrder = [
               {
+                productId: productId,
                 sku: sku,
                 quantity: item.quantity,
                 originalPrice: item.originalPrice,
                 totalPrice: item.totalPrice,
+                numCoin: item.totalPrice,
               }
             ]
           }
@@ -421,12 +425,18 @@ exports.webhookHandlerShoppingService = async (event) => {
               },
               $push: {
                 variant: [...varaintOrder],
-                adminNote: [...adminNoteCeartor]
               }
             },
             { upsert: true, new: true, runValidators: true }
           )
           console.log(`✅ Creator Order saved successfully: ${orderCreatorShopping._id}`);
+
+          const updateCoinCreator = await RegularUserData.findByIdAndUpdate(user.userData, {
+            $inc: {
+              numCoin: item.totalPrice,
+            }
+          }, { new: true })
+          console.log(`✅ Coin updated successfully: ${updateCoinCreator._id}`);
         }
         catch (error) {
           console.error("❌ Error saving order:", error.message);
@@ -464,8 +474,8 @@ exports.webhookHandlerShoppingService = async (event) => {
               addressStatus: 'default',
               addressName: 'default address'
             },
-            $push: {
-              adminNote: [...adminNote]
+            $set: {
+              adminNote: adminNote || []
             }
           },
           { upsert: true, new: true, runValidators: true }
