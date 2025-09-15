@@ -7,7 +7,7 @@ const itemVariantSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: 'ProductShopping',
             required: true
-          },
+        },
         sku: { type: String },
         quantity: { type: Number, required: true, min: 1 },
         originalPrice: { type: Number, required: true },
@@ -56,7 +56,7 @@ const CreatorOrderSchema = new mongoose.Schema(
 
         status: {
             type: String,
-            enum: ["paid", "pending", "failed", "refunded", "cancelled"],
+            enum: ["paid", "pending", "failed", "refunded", "cancelled", "processing","successful"],
             default: "pending",
         },
 

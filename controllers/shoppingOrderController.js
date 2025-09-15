@@ -158,7 +158,7 @@ exports.updateShoppingOrderById = async (req, res) => {
         res.json(shoppingOrder)
     }
     catch (error) {
-        console.error("❌ Failed to update shoppingOrder:", err);
+        console.error("❌ Failed to update shoppingOrder:", error);
         res.status(500).json({ message: "Server error" });
     }
 }
@@ -267,7 +267,7 @@ exports.getCreatorShoppingOrderById = async (req, res) => {
     }
 }
 
-exports.editAdminNoteCreatorShoppingOrderById = async (req, res) => {
+exports.editCreatorShoppingOrderById = async (req, res) => {
     const creatorOrderId = req.params.creatorOrderId
     if (!creatorOrderId) {
         return res.status(400).json({ message: `กรุณาระบุ creatorOrderId` })
@@ -275,11 +275,13 @@ exports.editAdminNoteCreatorShoppingOrderById = async (req, res) => {
 
     const {
         adminNote,
+        status,
     } = req.body
 
     const updateFields = {};
 
     if (adminNote !== undefined) updateFields.adminNote = adminNote;
+    if (status !== undefined) updateFields.status = status;
 
     try {
         const creatorOrder = await CreatorShoppingOrder.findByIdAndUpdate(
@@ -342,25 +344,36 @@ exports.editProductCreaterOrderById = async (req, res) => {
             return res.status(404).json({ message: `ไม่พบ CreatorOrder ID: ${creatorOrderId} นี้` })
         }
 
+        let foundItemCreatorOrder = false
         for (let index = 0; index < creatorOrder.variant.length; index++) {
             if (creatorOrder.variant[index].productId.toString() === productId && creatorOrder.variant[index].sku === sku) {
                 creatorOrder.variant[index].adminNote = adminNote || []
                 creatorOrder.variant[index].status = status || "preparing"
-                console.log(`creatorOrder.variant[index] => ${JSON.stringify(creatorOrder.variant[index], null, 2)}`)
+                foundItemCreatorOrder = true
+                continue
             }
-        }        
-
+        }  
+        if (foundItemCreatorOrder === false) {
+            return res.status(404).json({ message: `ไม่พบ productId: ${productId} และ sku: ${sku} นี้ใน CreatorOrder` })
+        }      
+        
         const order = await ProductShoppingOrder.findOne({ paymentIntentId: creatorOrder.paymentIntentId })
         if (!order) {
             return res.status(404).json({ message: `ไม่พบ Order` })
         }
 
+        let foundItemOrder = false
         for (let index = 0; index < order.items.length; index++) {
             if (order.items[index].productId.toString() === productId && order.items[index].variant.sku === sku) {
                 order.items[index].adminNote = adminNote || []
                 order.items[index].status = status || "preparing"
+                foundItemOrder = true
+                continue
             }
         }
+        if (foundItemOrder === false) {
+            return res.status(404).json({ message: `ไม่พบ productId: ${productId} และ sku: ${sku} นี้ใน Order` })
+        } 
 
         await creatorOrder.save()
         await order.save()
