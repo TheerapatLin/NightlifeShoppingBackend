@@ -40,7 +40,7 @@ const {
     getAllShoppingOrderForSuperadmin,
     updateShoppingOrderById,
     getShoppingOrderByCreaterId,
-    getOrderByIdUser,
+    getOrderById,
     getCreatorShoppingOrderByCreatorId,
     getAllCreatorShoppingOrderSuperAdmin,
     getCreatorShoppingOrderById,
@@ -184,7 +184,7 @@ module.exports = function () {
         [verifyAccessTokenWeb,
             authRoles(["user", "admin", "superadmin"])
         ],
-        getOrderByIdUser
+        getOrderById
     )
     router.get("/creator-creatororder/:userId",
         [verifyAccessTokenWeb,

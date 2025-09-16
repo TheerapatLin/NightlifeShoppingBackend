@@ -105,11 +105,54 @@ exports.getShoppingOrderByUserId = async (req, res) => {
 
 exports.getAllShoppingOrderForSuperadmin = async (req, res) => {
     try {
-        const shoppingOrders = await ProductShoppingOrder.find({})
+        const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+        const rawLimit = parseInt(req.query.limit, 10) || 20;
+        const limit = Math.min(Math.max(rawLimit, 1), 100);
+        const sortKey = req.query.sortKey || "createdAt";
+        const sortOrder = (req.query.sortOrder || "desc").toLowerCase() === "asc" ? 1 : -1
+
+        const sortMap = {
+            createdAt: "createdAt",
+            paidAt: "paidAt",
+            originalPrice: "originalPrice",
+            status: "status",
+            paymentMode: "paymentMode",
+        };
+        const sortField = sortMap[sortKey] || "createdAt";
+        const sortOption = { [sortField]: sortOrder };
+
+        const filter = {};
+        if (req.query.status) {
+            const statusArr = String(req.query.status)
+                .split(",")
+                .map((s) => s.trim())
+                .filter(Boolean);
+            const hasAll = statusArr.some((s) => s.toLowerCase() === "all");
+            if (!hasAll && statusArr.length > 0) {
+                filter.status = { $in: statusArr };
+            }
+        }
+
+        // const q = (req.query.q || "").trim();
+        // if (q) {
+        //     // ถ้าดูเป็นอีเมล ให้เน้นที่อีเมลก่อน
+        //     const emailLike = q.includes("@");
+        //     const regex = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+        //     if (emailLike) {
+        //         filter["user.email"] = regex;
+        //     } else {
+        //         filter.$or = [{ "user.name": regex }, { "user.email": regex }];
+        //     }
+        // }
+
+        const skip = (page - 1) * limit;
+
+        const shoppingOrders = await ProductShoppingOrder.find(filter).sort(sortOption).skip(skip).limit(limit)
 
         if (!shoppingOrders || shoppingOrders.length === 0) {
             return res.status(404).json({ message: "ไม่มี Order ในขณะนี้" });
         }
+
         res.status(200).send(shoppingOrders)
     }
     catch (error) {
@@ -180,7 +223,7 @@ exports.getShoppingOrderByCreaterId = async (req, res) => {
     }
 }
 
-exports.getOrderByIdUser = async (req, res) => {
+exports.getOrderById = async (req, res) => {
     try {
         const orderId = req.params.orderId
         const userId = req.params.userId || req.body.userId || req.query.userId
@@ -352,11 +395,11 @@ exports.editProductCreaterOrderById = async (req, res) => {
                 foundItemCreatorOrder = true
                 continue
             }
-        }  
+        }
         if (foundItemCreatorOrder === false) {
             return res.status(404).json({ message: `ไม่พบ productId: ${productId} และ sku: ${sku} นี้ใน CreatorOrder` })
-        }      
-        
+        }
+
         const order = await ProductShoppingOrder.findOne({ paymentIntentId: creatorOrder.paymentIntentId })
         if (!order) {
             return res.status(404).json({ message: `ไม่พบ Order` })
@@ -373,7 +416,7 @@ exports.editProductCreaterOrderById = async (req, res) => {
         }
         if (foundItemOrder === false) {
             return res.status(404).json({ message: `ไม่พบ productId: ${productId} และ sku: ${sku} นี้ใน Order` })
-        } 
+        }
 
         await creatorOrder.save()
         await order.save()
