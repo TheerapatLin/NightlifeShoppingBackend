@@ -58,12 +58,6 @@ const CreatorOrderSchema = new mongoose.Schema(
             }
         },
 
-        productId: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'ProductShopping',
-            required: true
-        },
-
         variant: [itemVariantSchema],
 
         status: {

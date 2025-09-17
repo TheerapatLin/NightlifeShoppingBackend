@@ -410,7 +410,6 @@ exports.webhookHandlerShoppingService = async (event) => {
                 id: creatorId,
                 name: creatorName
               },
-              productId: productId,
               status: "paid",
               paymentMode: paymentMode,
               paymentGateway: "stripe",

@@ -117,6 +117,7 @@ exports.getAllShoppingOrderForSuperadmin = async (req, res) => {
             originalPrice: "originalPrice",
             status: "status",
             paymentMode: "paymentMode",
+            adminNote: "adminNote"
         };
         const sortField = sortMap[sortKey] || "createdAt";
         const sortOption = { [sortField]: sortOrder };
@@ -425,7 +426,46 @@ exports.editProductCreaterOrderById = async (req, res) => {
 
 exports.getAllCreatorShoppingOrderSuperAdmin = async (req, res) => {
     try {
-        const allCreatorOrder = await CreatorShoppingOrder.find()
+        const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+        const rawLimit = parseInt(req.query.limit, 10) || 20;
+        const limit = Math.min(Math.max(rawLimit, 1), 100);
+        const sortKey = req.query.sortKey || "createdAt";
+        const sortOrder = (req.query.sortOrder || "desc").toLowerCase() === "asc" ? 1 : -1
+
+        const sortMap = {
+            createdAt: "createdAt",           
+            "buyer.name": "buyer.name",
+            "creator.name": "creator.name",
+            paidAt: "paidAt",
+            status: "status",
+            paymentMode: "paymentMode",
+            adminNote: "adminNote"
+        };
+
+        const sortField = sortMap[sortKey] || "createdAt";
+        const sortOption = { [sortField]: sortOrder };
+
+        const filter = {};
+        if (req.query.status) {
+            const statusArr = String(req.query.status)
+                .split(",")
+                .map((s) => s.trim())
+                .filter(Boolean);
+            const hasAll = statusArr.some((s) => s.toLowerCase() === "all");
+            if (!hasAll && statusArr.length > 0) {
+                filter.status = { $in: statusArr };
+            }
+        }
+
+        const q = (req.query.q || "").trim();
+        if (q) {
+            const regex = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+            filter.$or = [{ "buyer.name": regex },{ "creator.name": regex }];
+        }
+
+        const skip = (page - 1) * limit;
+
+        const allCreatorOrder = await CreatorShoppingOrder.find(filter).sort(sortOption).skip(skip).limit(limit)
         if (!allCreatorOrder) {
             return res.status(404).json({ message: `ไม่พบ Order` })
         }
