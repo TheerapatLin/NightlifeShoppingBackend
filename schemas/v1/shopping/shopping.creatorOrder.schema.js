@@ -34,16 +34,28 @@ const CreatorOrderSchema = new mongoose.Schema(
     {
         paymentIntentId: { type: String, required: true },
 
-        buyerId: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: "User",
-            required: true,
+        buyer: {
+            id: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: "User",
+                required: true,
+            },
+            name: {
+                type: String,
+                default: "unknow"
+            }
         },
 
-        creatorId: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: "User",
-            required: true,
+        creator: {
+            id: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: "User",
+                required: true,
+            },
+            name: {
+                type: String,
+                default: "unknow"
+            }
         },
 
         productId: {
@@ -56,7 +68,7 @@ const CreatorOrderSchema = new mongoose.Schema(
 
         status: {
             type: String,
-            enum: ["paid", "pending", "failed", "refunded", "cancelled", "processing","successful"],
+            enum: ["paid", "pending", "failed", "refunded", "cancelled", "processing", "successful"],
             default: "pending",
         },
 

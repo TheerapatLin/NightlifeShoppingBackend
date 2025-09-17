@@ -90,7 +90,7 @@ exports.getShoppingOrderByUserId = async (req, res) => {
             return res.status(400).json({ error: "ต้องระบุ userId" });
         }
 
-        const shoppingOrders = await ProductShoppingOrder.find({ userId: userId })
+        const shoppingOrders = await ProductShoppingOrder.find({ "user.id": userId })
 
         if (shoppingOrders.length === 0) {
             return res.status(404).json({ message: "No orders found for this user" });
@@ -133,17 +133,11 @@ exports.getAllShoppingOrderForSuperadmin = async (req, res) => {
             }
         }
 
-        // const q = (req.query.q || "").trim();
-        // if (q) {
-        //     // ถ้าดูเป็นอีเมล ให้เน้นที่อีเมลก่อน
-        //     const emailLike = q.includes("@");
-        //     const regex = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
-        //     if (emailLike) {
-        //         filter["user.email"] = regex;
-        //     } else {
-        //         filter.$or = [{ "user.name": regex }, { "user.email": regex }];
-        //     }
-        // }
+        const q = (req.query.q || "").trim();
+        if (q) {
+            const regex = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+            filter.$or = [{ "user.name": regex }];
+        }
 
         const skip = (page - 1) * limit;
 
@@ -206,7 +200,7 @@ exports.updateShoppingOrderById = async (req, res) => {
     }
 }
 
-exports.getShoppingOrderByCreaterId = async (req, res) => {
+exports.getShoppingOrderByCreaterId = async (req, res) => { // not done yet
     try {
         const creatorId = req.params.creatorId;
         const orders = await ProductShoppingOrder.find({
@@ -246,10 +240,6 @@ exports.getOrderById = async (req, res) => {
             return res.status(404).json({ message: `ไม่พบ user` })
         }
 
-        if (order.userId.toString() !== userId.toString()) {
-            return res.status(401).json({ message: `คุณสามารถดู Order ได้แค่ของตัวเองเท่านั้น` })
-        }
-
         return res.status(200).json(order)
     }
     catch (error) {
@@ -271,7 +261,7 @@ exports.getCreatorShoppingOrderByCreatorId = async (req, res) => {
             return res.status(404).json({ message: `ไม่พบ user` })
         }
 
-        const creatorOrder = await CreatorShoppingOrder.find({ creatorId: userId })
+        const creatorOrder = await CreatorShoppingOrder.find({ "creator.id": userId })
         if (!creatorOrder) {
             return res.status(404).json({ message: `ไม่พบ Order ของ Creator นี้` })
         }

@@ -48,10 +48,16 @@ const productShoppingOrderSchema = new mongoose.Schema(
 
     items: [OrderItemShoppingSchema],
 
-    userId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
+    user: {
+      id: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        required: true,
+      },
+      name: {
+        type: String,
+        default: "unknow"
+      }
     },
 
     status: {

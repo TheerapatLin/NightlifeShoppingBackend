@@ -329,6 +329,7 @@ exports.webhookHandlerShoppingService = async (event) => {
       for (const item of items) {
         const productId = item.productId;
         const creatorId = item.creator.id
+        const creatorName = item.creator.name
         const sku = item.variant.sku;
 
         let varaintOrder = []
@@ -394,12 +395,21 @@ exports.webhookHandlerShoppingService = async (event) => {
           const orderCreatorShopping = await CreatorShoppingOrder.findOneAndUpdate(
             {
               paymentIntentId: paymentIntent.id,
-              creatorId: creatorId,
+              creator: {
+                id: creatorId,
+                name: creatorName
+              },
             },
             {
               paymentIntentId: paymentIntent.id,
-              buyerId: user._id,
-              creatorId: creatorId,
+              buyer: {
+                id: user._id,
+                name: name
+              },
+              creator: {
+                id: creatorId,
+                name: creatorName
+              },
               productId: productId,
               status: "paid",
               paymentMode: paymentMode,
@@ -450,7 +460,10 @@ exports.webhookHandlerShoppingService = async (event) => {
           {
             paymentIntentId: paymentIntent.id,
             items: [...basket.items],
-            userId: user._id,
+            user: {
+              id: user._id,
+              name: name
+            },
             status: "paid",
             originalPrice: basket.totalPrice,
             paymentMode: paymentMode,
