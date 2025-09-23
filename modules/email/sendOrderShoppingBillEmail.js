@@ -189,9 +189,6 @@ module.exports = async function sendOrderShoppingBillEmail(
             subject,
             html,
         });
-
-        // console.log(`order => ${order}`)
-        // console.log(`itemData => ${JSON.stringify(itemData)}`)
         console.log("✅ ส่งอีเมลแจ้งคำสั่งซื้อสำเร็จไปยัง:", recipients.join(", "));
     }
     catch (error) {
