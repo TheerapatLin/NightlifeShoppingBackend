@@ -460,7 +460,7 @@ exports.editVariantProduct = async (req, res) => {
 exports.addImageIntoProduct = async (req, res) => {
     try {
         const productId = req.params.productId
-        const userId = req.body.userId
+        const { userId, indexes } = req.body
 
         if (!userId) {
             return res.status(400).send({ error: "ต้องระบุ userId" });
@@ -520,8 +520,23 @@ exports.addImageIntoProduct = async (req, res) => {
 
         if (images.length > 0) {
             product.image = images;
-            await product.save();
         }
+
+        let newImages = [];
+        if (indexes && indexes.length > 0) {
+            for (let i = 0; i < product.image.length; i++) {
+                if (indexes.includes(i)) {
+                    continue;
+                }
+                newImages.push({
+                    ...product.image.toObject(),
+                    order: newImages.length // อัปเดต order ใหม่
+                });
+            }
+            product.image = newImages;
+        }
+
+        await product.save();
 
         res.status(200).send({
             message: `Add image into product:${product.title.en} successful.`,
@@ -564,7 +579,6 @@ exports.addImagesIntoVariant = async (req, res) => {
                 .status(403)
                 .send({ error: "You can only edit your own product." });
         }
-        console.log(`indexes => ${JSON.stringify(indexes, null, 2)}`)
 
         for (let index = 0; index < product.variants.length; index++) {
             if (sku === product.variants[index].sku) {
@@ -606,7 +620,7 @@ exports.addImagesIntoVariant = async (req, res) => {
                     product.variants[index].images.push(...images);
                 }
                 let newImages = [];
-                
+
                 if (indexes && indexes.length > 0) {
                     for (let i = 0; i < product.variants[index].images.length; i++) {
                         if (indexes.includes(i)) {
@@ -618,7 +632,7 @@ exports.addImagesIntoVariant = async (req, res) => {
                         });
                     }
                     product.variants[index].images = newImages;
-                }                
+                }
                 await product.save();
             }
         }
