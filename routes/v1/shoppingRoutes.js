@@ -49,6 +49,10 @@ const {
 } = require("../../controllers/shoppingOrderController")
 
 const {
+    createWishlist
+} = require("../../controllers/shoppingWishlistController")
+
+const {
     // verifyAccessToken,
     // verifyRefreshToken,
     verifyAccessTokenWeb,
@@ -215,6 +219,14 @@ module.exports = function () {
             authRoles(["admin", "superadmin"])
         ],
         editProductCreaterOrderById
+    )
+
+    // wishlist API
+    router.post("/wishlist",
+        [verifyAccessTokenWeb,
+            authRoles(["user", "admin", "superadmin"])
+        ],
+        createWishlist
     )
 
     module.exports = router;
