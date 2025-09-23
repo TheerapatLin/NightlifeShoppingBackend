@@ -75,7 +75,14 @@ exports.createProductShopping = async (req, res) => {
 
 exports.getAllProductShopping = async (req, res) => {
     try {
-        const products = await ProductShopping.find({})
+        const q = (req.query.q || "").trim();
+        const filter = {};
+        if (q) {
+            const regex = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+            filter.$or = [{ "tags": regex }];
+        }
+
+        const products = await ProductShopping.find(filter)
 
         if (!products || products.length === 0) {
             return res.status(404).json({ message: "ไม่พบ Products" });
