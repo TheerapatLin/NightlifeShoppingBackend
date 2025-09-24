@@ -49,7 +49,12 @@ const {
 } = require("../../controllers/shoppingOrderController")
 
 const {
-    createWishlist
+    createWishlist,
+    getWishlistByUserId,
+    addItemToWishlist,
+    removeItemFromWishlist,
+    clearWishlist,
+    deleteWishlist
 } = require("../../controllers/shoppingWishlistController")
 
 const {
@@ -227,6 +232,36 @@ module.exports = function () {
             authRoles(["user", "admin", "superadmin"])
         ],
         createWishlist
+    )
+    router.get("/wishlist/:userId",
+        [verifyAccessTokenWeb,
+            authRoles(["user", "admin", "superadmin"])
+        ],
+        getWishlistByUserId
+    )
+    router.patch("/wishlist/add-item",
+        [verifyAccessTokenWeb,
+            authRoles(["user", "admin", "superadmin"])
+        ],
+        addItemToWishlist
+    )
+    router.patch("/wishlist/remove-item",
+        [verifyAccessTokenWeb,
+            authRoles(["user", "admin", "superadmin"])
+        ],
+        removeItemFromWishlist
+    )
+    router.patch("/wishlist/clear",
+        [verifyAccessTokenWeb,
+            authRoles(["user", "admin", "superadmin"])
+        ],
+        clearWishlist
+    )
+    router.delete("/wishlist",
+        [verifyAccessTokenWeb,
+            authRoles(["user", "admin", "superadmin"])
+        ],
+        deleteWishlist
     )
 
     module.exports = router;
