@@ -28,6 +28,10 @@ exports.createWishlist = async (req, res) => {
                 en: product.title.en,
                 th: product.title.th
             },
+            description: {
+                en: product.description.en,
+                th: product.description.th
+            },
             image: product.image[0].fileName
         });
 
@@ -110,6 +114,10 @@ exports.addItemToWishlist = async (req, res) => {
             title: {
                 en: product.title.en,
                 th: product.title.th
+            },
+            description: {
+                en: product.description.en,
+                th: product.description.th
             },
             image: product.image[0].fileName
         });

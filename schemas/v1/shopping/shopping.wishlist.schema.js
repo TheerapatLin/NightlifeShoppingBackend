@@ -5,6 +5,10 @@ const WishlistItemSchema = new mongoose.Schema({
         en: { type: String },
         th: { type: String }
     },
+    description: {
+        en: { type: String },
+        th: { type: String }
+    },
     productId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'ProductShopping',
